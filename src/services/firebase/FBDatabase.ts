@@ -1,7 +1,7 @@
 import {Database, Reference, getDatabase} from 'firebase-admin/database'
 import Admin from './Admin'
 
-class DatabaseService {
+class FBDatabase {
   public db: Database
 
   constructor() {
@@ -17,4 +17,4 @@ class DatabaseService {
   }
 }
 
-export default new DatabaseService()
+export default new FBDatabase()
