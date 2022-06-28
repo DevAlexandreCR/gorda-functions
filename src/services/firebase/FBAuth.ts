@@ -1,8 +1,8 @@
 import Admin from './Admin'
-import {Auth, getAuth, UserRecord} from 'firebase-admin/lib/auth'
 import {UserType} from '../Types/UserType'
+import {Auth, getAuth, UserRecord} from 'firebase-admin/auth'
 
-class AuthService {
+class FBAuth {
   public auth: Auth
 
   constructor() {
@@ -13,9 +13,9 @@ class AuthService {
     return this.auth.createUser(data)
   }
 
-  updateUser(uuid: string, data: UserType): Promise<UserRecord> {
-    return this.auth.updateUser(uuid, data)
+  updateUser(uid: string, data: Partial<UserType>): Promise<UserRecord> {
+    return this.auth.updateUser(uid, data)
   }
 }
 
-export default new AuthService()
+export default new FBAuth()
