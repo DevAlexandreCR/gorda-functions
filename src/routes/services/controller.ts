@@ -18,10 +18,10 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
       }
     } else {
       lastApplicant = applicant
+      assignedId = applicantId
     }
   })
   await setTimeout(() => {
-    console.log('assigned to ' + assignedId)
     refApplicants.off()
     return refService.update({
       status: 'in_progress',
