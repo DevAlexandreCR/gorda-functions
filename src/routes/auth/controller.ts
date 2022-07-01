@@ -9,7 +9,7 @@ import {enableValidator} from './validators/users/EnableValidator'
 const controller = Router()
 
 controller.post('/create-user', createValidator, async (req: Request, res: Response) => {
-  functions.logger.info(`create user ${req.body}`, {structuredData: true})
+  functions.logger.info(`create user ${req.body.toString()}`, {structuredData: true})
   const errors = validationResult(req)
 
   if (!errors.isEmpty()) {
@@ -25,6 +25,7 @@ controller.post('/create-user', createValidator, async (req: Request, res: Respo
       data: user.toJSON(),
     })
   }).catch((e) => {
+    functions.logger.error(`create user ${e.message}`, {structuredData: true})
     return res.status(500).json({
       status: 'FAILED',
       data: e.message,
