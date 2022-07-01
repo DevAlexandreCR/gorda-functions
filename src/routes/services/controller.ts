@@ -4,28 +4,36 @@ import {Applicant} from './Applicant'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   const serviceId = context.params.serviceID
+  const applicants = new Array<Applicant>()
   const refApplicants = FBDatabase.dbServices().child(serviceId).child('applicants').ref
   const refService = FBDatabase.dbServices().child(serviceId).ref
-  let assignedId: string | null = snapshot.key
-  let lastApplicant: Applicant
   refApplicants.on('child_added', (dataSnapshot) => {
     const applicant = dataSnapshot.val() as Applicant
-    const applicantId = dataSnapshot.key
-    if (lastApplicant) {
-      if (applicant.time < lastApplicant.time) {
-        lastApplicant = applicant
-        assignedId = applicantId
-      }
-    } else {
-      lastApplicant = applicant
-      assignedId = applicantId
-    }
+    applicant.id = dataSnapshot.key?? ''
+    applicants.push(applicant)
+    applicants.sort((a, b) => a.time - b.time)
   })
-  await setTimeout(() => {
+
+  refApplicants.on('child_removed', (dataSnapshot) => {
+    const applicant = dataSnapshot.val() as Applicant
+    const index = applicants.findIndex((a) => a.id === applicant.id)
+    applicants.splice(index, 1)
+  })
+
+  setTimeout(() => {
     refApplicants.off()
-    return refService.update({
-      status: 'in_progress',
-      driver_id: assignedId,
-    })
+    if (applicants.length > 0) {
+      const applicant = applicants.shift()
+      refService.update({
+        status: 'in_progress',
+        driver_id: applicant?.id,
+      }).then(() => {
+        console.log(`service ${serviceId} assigned to ${applicant?.id}`)
+      }).catch((e) => {
+        console.log(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
+        console.table(applicants)
+        refService.child('applicants').remove()
+      })
+    }
   }, 15000)
 })
