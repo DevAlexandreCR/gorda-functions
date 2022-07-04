@@ -1,20 +1,30 @@
 import {initializeApp, App, applicationDefault} from 'firebase-admin/app'
-import {getDatabase} from 'firebase-admin/database'
+import {Database, getDatabase} from 'firebase-admin/database'
+import {Auth, getAuth} from 'firebase-admin/auth'
 
 export default class Admin {
-  private static app: App
+  public static instance: Admin
+  public app: App
+  public auth: Auth
+  public db: Database
 
-  public static getInstance(): App {
-    if (!Admin.app) {
-      Admin.app = initializeApp({
-        credential: applicationDefault(),
-        databaseURL: 'https://gorda-driver-default-rtdb.firebaseio.com',
-      })
-      const db = getDatabase(Admin.app)
-      if (process.env.NODE_ENV == 'local') {
-        db.useEmulator('localhost', 9000)
-      }
+  constructor() {
+    const config = require('../../../config')
+    this.app = initializeApp({
+      credential: applicationDefault(),
+      databaseURL: 'https://gorda-driver-default-rtdb.firebaseio.com',
+    })
+    this.db = getDatabase(this.app)
+    this.auth = getAuth(this.app)
+    if (process.env.NODE_ENV == 'local') {
+      this.db.useEmulator(config.DATABASE_EMULATOR_PORT, config.DATABASE_EMULATOR_PORT)
     }
-    return Admin.app
+  }
+
+  public static getInstance(): Admin {
+    if (!Admin.instance) {
+      Admin.instance = new Admin()
+    }
+    return Admin.instance
   }
 }

@@ -1,12 +1,12 @@
 import Admin from './Admin'
 import {UserType} from '../Types/UserType'
-import {Auth, getAuth, UserRecord} from 'firebase-admin/auth'
+import {Auth, UserRecord} from 'firebase-admin/auth'
 
 class FBAuth {
   public auth: Auth
 
   constructor() {
-    this.auth = getAuth(Admin.getInstance())
+    this.auth = Admin.getInstance().auth
   }
 
   createUser(data: UserType): Promise<UserRecord> {
