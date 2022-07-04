@@ -9,4 +9,6 @@ typings/
 node_modules/
 
 **.log
-.env
+.env.local
+.env.production
+.env.local
