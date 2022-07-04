@@ -6,6 +6,7 @@ import {UserType} from '../../services/Types/UserType'
 import {createValidator} from './validators/users/CreateValidator'
 import {enableValidator} from './validators/users/EnableValidator'
 
+// eslint-disable-next-line new-cap
 const controller = Router()
 
 controller.post('/create-user', createValidator, async (req: Request, res: Response) => {
