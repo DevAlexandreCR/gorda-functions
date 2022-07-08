@@ -6,7 +6,7 @@ import {authRouter} from './routes/auth/controller'
 import * as services from './routes/services/controller'
 
 const api: Express = express()
-api.use(cors({origin: true}))
+api.use(cors())
 api.use('/auth', authRouter)
 
 exports.api = functions.https.onRequest(api)
