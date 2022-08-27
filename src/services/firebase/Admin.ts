@@ -12,12 +12,12 @@ export default class Admin {
     const config = require('../../../config')
     this.app = initializeApp({
       credential: applicationDefault(),
-      databaseURL: 'https://gorda-driver-default-rtdb.firebaseio.com',
+      databaseURL: config.DATABASE_URL,
     })
     this.db = getDatabase(this.app)
     this.auth = getAuth(this.app)
     if (process.env.NODE_ENV == 'local') {
-      this.db.useEmulator(config.DATABASE_EMULATOR_PORT, config.DATABASE_EMULATOR_PORT)
+      this.db.useEmulator(config.DATABASE_EMULATOR_HOST, config.DATABASE_EMULATOR_PORT as number)
     }
   }
 
