@@ -1,5 +1,7 @@
+import { Message } from 'firebase-admin/messaging'
 import * as functions from 'firebase-functions'
 import FBDatabase from '../../services/firebase/FBDatabase'
+import FBMessaging from '../../services/firebase/FBMessaging'
 import {Applicant} from './Applicant'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
@@ -40,8 +42,9 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
       refService.update({
         status: 'in_progress',
         driver_id: applicant?.id,
-      }).then(() => {
+      }).then(async () => {
         refService.off()
+        await sendService(applicant!.id, serviceId)
         console.log(`service ${serviceId} assigned to ${applicant?.id}`)
       }).catch((e) => {
         refService.off()
@@ -52,3 +55,19 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     }
   }, 15000)
 })
+
+async function sendService(driverId: string, serviceId: string): Promise<void> {
+  const token = await FBDatabase.dbTokens().child(driverId).once("value")
+  const payload: Message = {
+    token: token.val(),
+    notification: {
+      title: 'cloud function demo',
+      body: "New Service"
+    },
+    data: {
+      body: "New Service",
+    }
+  }
+
+  FBMessaging.sendService(payload)
+}

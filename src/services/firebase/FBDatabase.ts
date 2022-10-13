@@ -15,6 +15,10 @@ class FBDatabase {
   public dbServices(): Reference {
     return this.db.ref('services/')
   }
+
+  public dbTokens(): Reference {
+    return this.db.ref('tokens/')
+  }
 }
 
 export default new FBDatabase()
