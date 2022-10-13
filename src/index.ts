@@ -1,13 +1,13 @@
 import * as functions from 'firebase-functions'
+import {Express} from 'express'
+import * as cors from 'cors'
+import * as express from 'express'
+import {authRouter} from './routes/auth/controller'
+import * as services from './routes/services/controller'
 
-// Start writing Firebase Functions
-// https://firebase.google.com/docs/functions/typescript
+const api: Express = express()
+api.use(cors())
+api.use('/auth', authRouter)
 
-export const helloWorld = functions.https.onRequest((request, response) => {
-  functions.logger.info('Hello logs!', {structuredData: true})
-  response.send('Hello from Firebase!')
-})
-
-export const createUser = functions.https.onRequest((request, response) => {
-
-})
+exports.api = functions.https.onRequest(api)
+exports.services = services
