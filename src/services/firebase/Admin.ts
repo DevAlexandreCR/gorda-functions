@@ -12,10 +12,12 @@ export default class Admin {
 
   constructor() {
     const config = require('../../../config')
+    
     this.app = initializeApp({
       credential: applicationDefault(),
       databaseURL: config.DATABASE_URL,
     })
+    
     this.db = getDatabase(this.app)
     this.auth = getAuth(this.app)
     this.msg = getMessaging(this.app)

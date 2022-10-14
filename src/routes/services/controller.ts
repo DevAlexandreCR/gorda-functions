@@ -1,10 +1,12 @@
 import { Message } from 'firebase-admin/messaging'
 import * as functions from 'firebase-functions'
 import FBDatabase from '../../services/firebase/FBDatabase'
-import FBMessaging from '../../services/firebase/FBMessaging'
+// import FBMessaging from '../../services/firebase/FBMessaging'
 import {Applicant} from './Applicant'
 
-export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
+const config = require('../../../config')
+
+export const assign = functions.database.instance(config.DATABASE_INSTANCE).ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
   const serviceId = context.params.serviceID
   const applicants = new Array<Applicant>()
@@ -53,7 +55,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
         refService.child('applicants').remove()
       })
     }
-  }, 15000)
+  }, 3000)
 })
 
 async function sendService(driverId: string, serviceId: string): Promise<void> {
@@ -69,5 +71,12 @@ async function sendService(driverId: string, serviceId: string): Promise<void> {
     }
   }
 
-  FBMessaging.sendService(payload)
+  console.log(payload);
+  
+
+  // FBMessaging.sendService(payload)
 }
+
+export const test = functions.database.instance(config.DATABASE_INSTANCE).ref('online_drivers/{driverID}').onCreate(async (snapshot, context) => {
+  console.log(context.params.driverID);
+})
