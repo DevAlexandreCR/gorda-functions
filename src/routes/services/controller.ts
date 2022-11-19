@@ -78,5 +78,20 @@ async function sendService(driverId: string, serviceId: string): Promise<void> {
 }
 
 export const test = functions.database.instance(config.DATABASE_INSTANCE).ref('online_drivers/{driverID}').onCreate(async (snapshot, context) => {
-  console.log(context.params.driverID);
+  const driverId = context.params.driverID
+  const token = await FBDatabase.dbTokens().child(driverId).once("value")
+  const payload: Message = {
+    token: token.val(),
+    notification: {
+      title: 'cloud function demo',
+      body: "New Service"
+    },
+    data: {
+      body: "New Service",
+    }
+  }
+
+  console.log(payload);
+  
+// FBMessaging.sendService(payload)
 })
