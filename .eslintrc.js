@@ -28,6 +28,7 @@ module.exports = {
     'quotes': ['error', 'single'],
     'max-len': ['error', 120],
     'semi': ['error', 'never'],
+    'linebreak-style': ['error', 'windows'],
     'import/no-unresolved': 0,
     '@typescript-eslint/no-var-requires': 'off',
     'require-jsdoc': ['error', {
