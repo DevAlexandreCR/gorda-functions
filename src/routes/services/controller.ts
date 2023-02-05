@@ -42,10 +42,10 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
         driver_id: applicant?.id,
       }).then(() => {
         refService.off()
-        console.log(`service ${serviceId} assigned to ${applicant?.id}`)
+        functions.logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
       }).catch((e) => {
         refService.off()
-        console.log(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
+        functions.logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
         console.table(applicants)
         refService.child('applicants').remove()
       })
