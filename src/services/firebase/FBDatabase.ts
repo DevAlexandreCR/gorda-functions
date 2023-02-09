@@ -15,6 +15,10 @@ class FBDatabase {
   public dbServices(): Reference {
     return this.db.ref('services/')
   }
+  
+  public dbWpNotifications(): Reference {
+    return this.db.ref('wp_notifications/')
+  }
 }
 
 export default new FBDatabase()
