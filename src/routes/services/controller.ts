@@ -4,6 +4,7 @@ import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../services/Types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS} from '../../services/constants/Constants'
+import SettingsRepository from '../../repositories/SettingsRepository'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
@@ -58,6 +59,9 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 
 export const notificationStatusChanged = functions.database.ref('services/{serviceID}/status')
     .onUpdate(async (dataSnapshot, context) => {
+      const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
+      if (!wpNotificationsEnabled) return
+
       const serviceId = context.params.serviceID
       const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
       let notification: WpNotificationType
@@ -103,6 +107,9 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 
 export const notificationArrived = functions.database.ref('services/{serviceID}/metadata/arrived_at')
     .onCreate(async (dataSnapshot, context) => {
+      const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
+      if (!wpNotificationsEnabled) return
+
       const serviceId = context.params.serviceID
       const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
       const notification: WpNotificationType = {
