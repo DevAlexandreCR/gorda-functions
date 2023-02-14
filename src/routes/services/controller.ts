@@ -85,7 +85,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
             driver_id: null,
           }
 
-          await FBDatabase.dbWpNotifications().child('canceled').child(serviceId).set(notification)
+          await FBDatabase.dbWpNotifications().child(STATUS_CANCELED).child(serviceId).set(notification)
               .catch((e) => functions.logger.error(e))
 
           break
@@ -95,7 +95,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
             driver_id: null,
           }
 
-          await FBDatabase.dbWpNotifications().child('completed').child(serviceId).set(notification)
+          await FBDatabase.dbWpNotifications().child(STATUS_COMPLETED).child(serviceId).set(notification)
               .catch((e) => functions.logger.error(e))
 
           break
