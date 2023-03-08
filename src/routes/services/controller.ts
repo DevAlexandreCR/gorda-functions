@@ -80,6 +80,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
               .catch((e) => functions.logger.error(e))
           break
         case STATUS_CANCELED:
+          return
           notification = {
             client_id: clientId.val(),
             driver_id: null,
@@ -90,6 +91,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 
           break
         case STATUS_COMPLETED:
+          return
           notification = {
             client_id: clientId.val(),
             driver_id: null,
