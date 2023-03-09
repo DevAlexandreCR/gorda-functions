@@ -25,6 +25,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
   refStatus.on('value', (statusSnapshot) => {
     const status = statusSnapshot.val() as string
     if (status !== STATUS_PENDING) {
+      functions.logger.warn(`service ${serviceId} have status ${status} aborting...`)
       refApplicants.off()
       refService.off()
       refStatus.off()
