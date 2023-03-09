@@ -3,12 +3,13 @@ import FBDatabase from '../../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../services/Types/WpNotificationType'
-import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS} from '../../services/constants/Constants'
+import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
   const serviceId = context.params.serviceID
+  let timeout: NodeJS.Timer
   const applicants = new Array<Applicant>()
   const refApplicants = FBDatabase.dbServices().child(serviceId).child('applicants').ref
   const refStatus = FBDatabase.dbServices().child(serviceId).child('status').ref
@@ -21,11 +22,14 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.sort((a, b) => a.time - b.time)
   })
 
-  refStatus.on('child_changed', (statusSnapshot) => {
+  refStatus.on('value', (statusSnapshot) => {
     const status = statusSnapshot.val() as string
-    if (status === 'canceled') {
+    if (status !== STATUS_PENDING) {
       refApplicants.off()
+      refService.off()
+      refStatus.off()
       canceled = true
+      clearTimeout(timeout)
     }
   })
 
@@ -35,7 +39,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.splice(index, 1)
   })
 
-  setTimeout(() => {
+  timeout = setTimeout(() => {
     refApplicants.off()
     refService.off()
     refStatus.off()
