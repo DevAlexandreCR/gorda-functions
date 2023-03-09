@@ -9,7 +9,6 @@ import SettingsRepository from '../../repositories/SettingsRepository'
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
   const serviceId = context.params.serviceID
-  let timeout: NodeJS.Timer
   const applicants = new Array<Applicant>()
   const refApplicants = FBDatabase.dbServices().child(serviceId).child('applicants').ref
   const refStatus = FBDatabase.dbServices().child(serviceId).child('status').ref
@@ -40,7 +39,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.splice(index, 1)
   })
 
-  timeout = setTimeout(() => {
+  const timeout = setTimeout(() => {
     refApplicants.off()
     refService.off()
     refStatus.off()
