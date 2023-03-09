@@ -3,12 +3,13 @@ import FBDatabase from '../../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../services/Types/WpNotificationType'
-import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS} from '../../services/constants/Constants'
+import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
   const serviceId = context.params.serviceID
+  let timeout: NodeJS.Timer
   const applicants = new Array<Applicant>()
   const refApplicants = FBDatabase.dbServices().child(serviceId).child('applicants').ref
   const refStatus = FBDatabase.dbServices().child(serviceId).child('status').ref
@@ -21,11 +22,15 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.sort((a, b) => a.time - b.time)
   })
 
-  refStatus.on('child_changed', (statusSnapshot) => {
+  refStatus.on('value', (statusSnapshot) => {
     const status = statusSnapshot.val() as string
-    if (status === 'canceled') {
+    if (status !== STATUS_PENDING) {
+      functions.logger.warn(`service ${serviceId} have status ${status} aborting...`)
       refApplicants.off()
+      refService.off()
+      refStatus.off()
       canceled = true
+      clearTimeout(timeout)
     }
   })
 
@@ -35,7 +40,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.splice(index, 1)
   })
 
-  setTimeout(() => {
+  timeout = setTimeout(() => {
     refApplicants.off()
     refService.off()
     refStatus.off()
@@ -80,6 +85,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
               .catch((e) => functions.logger.error(e))
           break
         case STATUS_CANCELED:
+          return
           notification = {
             client_id: clientId.val(),
             driver_id: null,
@@ -90,6 +96,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 
           break
         case STATUS_COMPLETED:
+          return
           notification = {
             client_id: clientId.val(),
             driver_id: null,
@@ -118,5 +125,21 @@ export const notificationArrived = functions.database.ref('services/{serviceID}/
       }
 
       await FBDatabase.dbWpNotifications().child('arrived').child(serviceId).set(notification)
+          .catch((e) => functions.logger.error(e))
+    })
+
+export const notificationNew = functions.database.ref('services/{serviceID}/client_id')
+    .onCreate(async (dataSnapshot, context) => {
+      const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
+      if (!wpNotificationsEnabled) return
+
+      const serviceId = context.params.serviceID
+      const clientId: string = await dataSnapshot.val()
+      const notification: WpNotificationType = {
+        client_id: clientId,
+        driver_id: null,
+      }
+
+      await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
           .catch((e) => functions.logger.error(e))
     })
