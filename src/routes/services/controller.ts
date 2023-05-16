@@ -5,11 +5,11 @@ import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../services/Types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
+import ServiceRepository from '../../repositories/ServiceRepository'
 
 export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
   let canceled = false
   const serviceId = context.params.serviceID
-  let timeout: NodeJS.Timer
   const applicants = new Array<Applicant>()
   const refApplicants = FBDatabase.dbServices().child(serviceId).child('applicants').ref
   const refStatus = FBDatabase.dbServices().child(serviceId).child('status').ref
@@ -40,7 +40,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
     applicants.splice(index, 1)
   })
 
-  timeout = setTimeout(() => {
+  const timeout = setTimeout(() => {
     refApplicants.off()
     refService.off()
     refStatus.off()
@@ -65,7 +65,6 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 export const notificationStatusChanged = functions.database.ref('services/{serviceID}/status')
     .onUpdate(async (dataSnapshot, context) => {
       const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
-      if (!wpNotificationsEnabled) return
 
       const serviceId = context.params.serviceID
       const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
@@ -74,6 +73,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 
       switch (dataSnapshot.after.val()) {
         case STATUS_IN_PROGRESS:
+          if (!wpNotificationsEnabled) return
           notification = {
             client_id: clientId.val(),
             driver_id: driverId.val(),
@@ -85,26 +85,12 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
               .catch((e) => functions.logger.error(e))
           break
         case STATUS_CANCELED:
-          return
-          notification = {
-            client_id: clientId.val(),
-            driver_id: null,
-          }
-
-          await FBDatabase.dbWpNotifications().child(STATUS_CANCELED).child(serviceId).set(notification)
-              .catch((e) => functions.logger.error(e))
-
-          break
         case STATUS_COMPLETED:
-          return
-          notification = {
-            client_id: clientId.val(),
-            driver_id: null,
-          }
-
-          await FBDatabase.dbWpNotifications().child(STATUS_COMPLETED).child(serviceId).set(notification)
+          await ServiceRepository.getServiceDB(serviceId)
+              .then(async (service) => {
+                await ServiceRepository.saveServiceFS(service).catch((e) => functions.logger.error(e))
+              })
               .catch((e) => functions.logger.error(e))
-
           break
         default:
           functions.logger.info('service ' + dataSnapshot.after.val())
