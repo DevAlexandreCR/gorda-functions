@@ -16,6 +16,10 @@ class FBAuth {
   updateUser(uid: string, data: Partial<UserType>): Promise<UserRecord> {
     return this.auth.updateUser(uid, data)
   }
+
+  updatePassword(uid: string, password: Partial<UserType>): Promise<UserRecord> {
+    return this.auth.updateUser(uid, password)
+  }
 }
 
 export default new FBAuth()
