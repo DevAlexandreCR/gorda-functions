@@ -6,6 +6,6 @@ export const updateEmailValidator = [
 ]
 
 export const updatePasswordValidator = [
-	body('uid').notEmpty().isString().isLength({min: 10}),
-	body('password').notEmpty().isString().isLength({min: 6}),
+  body('uid').notEmpty().isString().isLength({min: 10}),
+  body('password').notEmpty().isString().isLength({min: 6}),
 ]
