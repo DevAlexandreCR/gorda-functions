@@ -11,6 +11,10 @@ class FBFirestore {
   public dbServices(): CollectionReference {
     return this.fs.collection('services')
   }
+	
+	public dbMetrics(): CollectionReference {
+		return this.fs.collection('metrics')
+	}
 }
 
 export default new FBFirestore()
