@@ -16,6 +16,7 @@ export const populateMetric = functions.pubsub.schedule('0 * * * *')
     })
 
 controller.get('/populate', async (req: Request, res: Response) => {
+  // TODO: receive dates from request
   const startDate = dayjs().startOf('day').unix()
   const endDate = dayjs().endOf('day').unix()
   MetricRepository.populateMetric(startDate, endDate)
