@@ -1,5 +1,5 @@
 import Admin from './Admin'
-import {UserType} from '../Types/UserType'
+import {UserType} from '../../Types/UserType'
 import {Auth, UserRecord} from 'firebase-admin/auth'
 
 class FBAuth {

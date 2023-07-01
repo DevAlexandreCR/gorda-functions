@@ -1,3 +1,4 @@
-enum MetricType {
-	Global,
+export enum MetricType {
+	Global
+
 }
