@@ -10,7 +10,7 @@ const controller = Router()
 export const populateMetric = functions.pubsub.schedule('0 * * * *')
     .timeZone('America/Bogota')
     .onRun(async (context) => {
-      functions.logger.info(`populate cron ${context.params}`, {structuredData: true})
+      functions.logger.info(`populate cron ${context.params.toString()}`, {structuredData: true})
 
       const startDate = dayjs().subtract(30, 'minutes').startOf('hour').unix()
       const endDate = dayjs().subtract(30, 'minutes').endOf('hour').unix()
