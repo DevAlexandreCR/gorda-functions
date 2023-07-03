@@ -9,6 +9,16 @@ import * as dayjs from 'dayjs'
 
 class MetricRepository {
   async saveMetric(metric: Metric): Promise<WriteResult> {
+    await FBFirestore.dbMetrics()
+        .where('date', '==', metric.date)
+        .where('type', '==', metric.type)
+        .where('status', '==', metric.status)
+        .get()
+        .then((snapshot) => {
+          snapshot.forEach( (doc) => {
+            doc.ref.delete()
+          })
+        })
     return await FBFirestore.dbMetrics().doc().set(metric)
   }
 
@@ -38,7 +48,7 @@ class MetricRepository {
                   const metricTerminated: Metric = {
                     date: today,
                     type: MetricType.Global,
-                    status: ServiceStatus.Canceled,
+                    status: ServiceStatus.Terminated,
                     count: terminated.data().count ?? 0,
                   }
 
