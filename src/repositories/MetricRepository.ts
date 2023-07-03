@@ -27,7 +27,7 @@ class MetricRepository {
           .then((canceled) => {
             ServiceRepository.getGlobalMetric(startDate, endDate, ServiceStatus.Terminated)
                 .then((terminated) => {
-                  const today = dayjs().format('YYYY-MM-DD').toString()
+                  const today = dayjs(startDate * 1000).format('YYYY-MM-DD').toString()
                   const metricCanceled: Metric = {
                     date: today,
                     type: MetricType.Global,
