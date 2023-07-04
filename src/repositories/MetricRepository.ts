@@ -5,7 +5,7 @@ import {Metric} from '../Types/Metric'
 import {MetricType} from '../Types/MetricType'
 import ServiceRepository from './ServiceRepository'
 import {ServiceStatus} from '../Types/ServiceStatus'
-import * as dayjs from 'dayjs'
+import dayjs from 'dayjs'
 
 class MetricRepository {
 	async saveMetric(metric: Metric): Promise<WriteResult> {

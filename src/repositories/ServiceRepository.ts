@@ -5,7 +5,6 @@ import FBFirestore from '../services/firebase/FBFirestore'
 import {WriteResult} from 'firebase-admin/firestore'
 import {ServiceStatus} from '../Types/ServiceStatus'
 
-
 class ServiceRepository {
 	async getServiceDB(id: string): Promise<ServiceType> {
 		const snapshot: DataSnapshot = await FBDatabase.dbServices().child(id).get().catch((e) => Promise.reject(e))
