@@ -13,8 +13,8 @@ export const populateMetric = functions.pubsub.schedule('10 0 * * *')
 	.onRun(async (context) => {
 		functions.logger.info(`populate cron ${context.params.toString()}`, {structuredData: true})
 
-		const startDate = dayjs().tz('America/Bogota').subtract(30, 'minutes').startOf('day').unix()
-		const endDate = dayjs().tz('America/Bogota').subtract(30, 'minutes').endOf('day').unix()
+		const startDate = dayjs().tz('America/Bogota').subtract(1, 'day').startOf('day').unix()
+		const endDate = dayjs().tz('America/Bogota').subtract(1, 'day').endOf('day').unix()
 		await MetricRepository.populateMetric(startDate, endDate).catch((e) => {
 			functions.logger.warn(e)
 		})
