@@ -3,9 +3,9 @@ import * as functions from 'firebase-functions'
 import {validationResult} from 'express-validator'
 import FBAuth from '../../services/firebase/FBAuth'
 import {UserType} from '../../Types/UserType'
-import {createValidator} from './validators/users/CreateValidator'
-import {enableValidator} from './validators/users/EnableValidator'
-import {updateEmailValidator, updatePasswordValidator} from './validators/users/UpdateEmailValidator'
+import {createValidator} from '../validators/users/CreateValidator'
+import {enableValidator} from '../validators/users/EnableValidator'
+import {updateEmailValidator, updatePasswordValidator} from '../validators/users/UpdateEmailValidator'
 
 // eslint-disable-next-line new-cap
 const controller = Router()
