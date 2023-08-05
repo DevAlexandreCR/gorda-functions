@@ -4,7 +4,7 @@ import cors from 'cors'
 
 import {authRouter} from './routes/auth/controller'
 import * as services from './routes/services/controller'
-import {metrics, populateMetric} from './routes/metrics/controller'
+import {metrics} from './routes/metrics/controller'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
@@ -19,4 +19,4 @@ api.use('/metrics', metrics)
 
 exports.api = functions.https.onRequest(api)
 exports.services = services
-exports.metric = populateMetric
+exports.metric = metrics
