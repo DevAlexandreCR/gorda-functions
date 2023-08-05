@@ -8,10 +8,17 @@
     "strict": true,
     "target": "es2017",
     "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "compileOnSave": true,
   "include": [
     "src",
     "config.js"
+  ],
+  "typeRoots": [
+    "./typings",
+    "./node_modules/@types/"
   ]
 }
