@@ -2,8 +2,11 @@ import FBDatabase from '../services/firebase/FBDatabase'
 import * as functions from 'firebase-functions'
 
 class SettingsRepository {
-	async isWpNotificationsEnabled(): Promise<boolean> {
-		const wpNotificationsSnapshot = await FBDatabase.settings().child('wpNotifications')
+	async isWpNotificationsEnabled(wpClient: string): Promise<boolean> {
+		const wpNotificationsSnapshot = await FBDatabase.settings()
+			.child('wp_clients')
+			.child(wpClient)
+			.child('wpNotifications')
 			.get()
 			.catch((e) => Promise.reject(e))
 

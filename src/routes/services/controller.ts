@@ -64,9 +64,10 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 
 export const notificationStatusChanged = functions.database.ref('services/{serviceID}/status')
 	.onUpdate(async (dataSnapshot, context) => {
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
-
 		const serviceId = context.params.serviceID
+		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
+
+		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
 		const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
 		let notification: WpNotificationType
 		const driverId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
@@ -76,6 +77,7 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 			if (!wpNotificationsEnabled) return
 			notification = {
 				client_id: clientId.val(),
+				wp_client_id: wpClientId.val(),
 				driver_id: driverId.val(),
 			}
 
@@ -100,13 +102,15 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 
 export const notificationArrived = functions.database.ref('services/{serviceID}/metadata/arrived_at')
 	.onCreate(async (dataSnapshot, context) => {
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
+		const serviceId = context.params.serviceID
+		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
+		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
 		if (!wpNotificationsEnabled) return
 
-		const serviceId = context.params.serviceID
 		const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
 		const notification: WpNotificationType = {
 			client_id: clientId.val(),
+			wp_client_id: wpClientId.val(),
 			driver_id: null,
 		}
 
@@ -116,13 +120,15 @@ export const notificationArrived = functions.database.ref('services/{serviceID}/
 
 export const notificationNew = functions.database.ref('services/{serviceID}/client_id')
 	.onCreate(async (dataSnapshot, context) => {
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled()
+		const serviceId = context.params.serviceID
+		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
+		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
 		if (!wpNotificationsEnabled) return
 
-		const serviceId = context.params.serviceID
 		const clientId: string = await dataSnapshot.val()
 		const notification: WpNotificationType = {
 			client_id: clientId,
+			wp_client_id: wpClientId.val(),
 			driver_id: null,
 		}
 
