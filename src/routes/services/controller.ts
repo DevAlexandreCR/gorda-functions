@@ -40,24 +40,30 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 		applicants.splice(index, 1)
 	})
 
-	const timeout = setTimeout(() => {
+	const timeout = setTimeout(async () => {
 		refApplicants.off()
 		refService.off()
 		refStatus.off()
 		if (!canceled && applicants.length > 0) {
 			const applicant = applicants.shift()
-			refService.update({
-				status: 'in_progress',
-				driver_id: applicant?.id,
-			}).then(() => {
+			const driver = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
+			if (!driver.exists()) {
+				refService.update({
+					status: 'in_progress',
+					driver_id: applicant?.id,
+				}).then(() => {
+					refService.off()
+					functions.logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
+				}).catch((e) => {
+					refService.off()
+					functions.logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
+					console.table(applicants)
+					refService.child('applicants').remove()
+				})
+			} else {
 				refService.off()
-				functions.logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
-			}).catch((e) => {
-				refService.off()
-				functions.logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
-				console.table(applicants)
-				refService.child('applicants').remove()
-			})
+				functions.logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
+			}
 		}
 	}, 15000)
 })
