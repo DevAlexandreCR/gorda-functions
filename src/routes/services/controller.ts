@@ -36,8 +36,10 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 
 	refApplicants.on('child_removed', (dataSnapshot) => {
 		const applicant = dataSnapshot.val() as Applicant
+		applicant.id = dataSnapshot.key ?? ''
+		functions.logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
 		const index = applicants.findIndex((a) => a.id === applicant.id)
-		applicants.splice(index, 1)
+		if (index >= 0) applicants.splice(index, 1)
 	})
 
 	const timeout = setTimeout(async () => {
@@ -64,6 +66,8 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 				refService.off()
 				functions.logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
 			}
+		} else {
+			functions.logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
 		}
 	}, 15000)
 })
