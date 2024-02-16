@@ -142,6 +142,9 @@ export const notificationNew = functions.database.ref('services/{serviceID}/clie
 			driver_id: null,
 		}
 
-		await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
-			.catch((e) => functions.logger.error(e))
+		const exists = await FBDatabase.dbWpNotifications().child('new').orderByChild('client_id').equalTo(clientId).get()
+		if (!exists.exists()) {
+			await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
+				.catch((e) => functions.logger.error(e))
+		}
 	})
