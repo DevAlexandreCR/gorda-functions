@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions'
+import {logger, database} from 'firebase-functions'
 import FBDatabase from '../../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
@@ -7,7 +7,9 @@ import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} f
 import SettingsRepository from '../../repositories/SettingsRepository'
 import ServiceRepository from '../../repositories/ServiceRepository'
 
-export const assign = functions.database.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
+const databaseRef = database.instance('gorda-driver-default-rtdb')
+
+export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
 	let canceled = false
 	const serviceId = context.params.serviceID
 	const applicants = new Array<Applicant>()
@@ -25,7 +27,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 	refStatus.on('value', (statusSnapshot) => {
 		const status = statusSnapshot.val() as string
 		if (status !== STATUS_PENDING) {
-			functions.logger.warn(`service ${serviceId} have status ${status} aborting...`)
+			logger.warn(`service ${serviceId} have status ${status} aborting...`)
 			refApplicants.off()
 			refService.off()
 			refStatus.off()
@@ -37,7 +39,7 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 	refApplicants.on('child_removed', (dataSnapshot) => {
 		const applicant = dataSnapshot.val() as Applicant
 		applicant.id = dataSnapshot.key ?? ''
-		functions.logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
+		logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
 		const index = applicants.findIndex((a) => a.id === applicant.id)
 		if (index >= 0) applicants.splice(index, 1)
 	})
@@ -55,24 +57,24 @@ export const assign = functions.database.ref('services/{serviceID}/applicants').
 					driver_id: applicant?.id,
 				}).then(() => {
 					refService.off()
-					functions.logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
+					logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
 				}).catch((e) => {
 					refService.off()
-					functions.logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
+					logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
 					console.table(applicants)
 					refService.child('applicants').remove()
 				})
 			} else {
 				refService.off()
-				functions.logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
+				logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
 			}
 		} else {
-			functions.logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
+			logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
 		}
 	}, 15000)
 })
 
-export const notificationStatusChanged = functions.database.ref('services/{serviceID}/status')
+export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/status')
 	.onUpdate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
@@ -91,26 +93,50 @@ export const notificationStatusChanged = functions.database.ref('services/{servi
 				driver_id: driverId.val(),
 			}
 
-			functions.logger.debug(notification)
+			logger.debug(notification)
 
 			await FBDatabase.dbWpNotifications().child('assigned').child(serviceId).set(notification)
-				.catch((e) => functions.logger.error(e))
+				.catch((e) => logger.error(e))
 			break
 		case STATUS_CANCELED:
-		case STATUS_COMPLETED:
+			if (!wpNotificationsEnabled) return
+			notification = {
+				client_id: clientId.val(),
+				wp_client_id: wpClientId.val(),
+				driver_id: null,
+			}
+
+			await FBDatabase.dbWpNotifications().child(STATUS_CANCELED).child(serviceId).set(notification)
+				.catch((e) => logger.error(e))
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
-					await ServiceRepository.saveServiceFS(service).catch((e) => functions.logger.error(e))
+					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
 				})
-				.catch((e) => functions.logger.error(e))
+				.catch((e) => logger.error(e))
+			break
+		case STATUS_COMPLETED:
+			if (!wpNotificationsEnabled) return
+			notification = {
+				client_id: clientId.val(),
+				wp_client_id: wpClientId.val(),
+				driver_id: null,
+			}
+
+			await FBDatabase.dbWpNotifications().child(STATUS_COMPLETED).child(serviceId).set(notification)
+				.catch((e) => logger.error(e))
+			await ServiceRepository.getServiceDB(serviceId)
+				.then(async (service) => {
+					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
+				})
+				.catch((e) => logger.error(e))
 			break
 		default:
-			functions.logger.info('service ' + dataSnapshot.after.val())
+			logger.info('service ' + dataSnapshot.after.val())
 			break
 		}
 	})
 
-export const notificationArrived = functions.database.ref('services/{serviceID}/metadata/arrived_at')
+export const notificationArrived = databaseRef.ref('services/{serviceID}/metadata/arrived_at')
 	.onCreate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
@@ -125,14 +151,14 @@ export const notificationArrived = functions.database.ref('services/{serviceID}/
 		}
 
 		await FBDatabase.dbWpNotifications().child('arrived').child(serviceId).set(notification)
-			.catch((e) => functions.logger.error(e))
+			.catch((e) => logger.error(e))
 	})
 
-export const notificationNew = functions.database.ref('services/{serviceID}/client_id')
+export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 	.onCreate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
+		const wpNotificationsEnabled = await SettingsRepository.mustAddNew(wpClientId.val())
 		if (!wpNotificationsEnabled) return
 
 		const clientId: string = await dataSnapshot.val()
@@ -149,6 +175,6 @@ export const notificationNew = functions.database.ref('services/{serviceID}/clie
 			.get()
 		if (!exists.exists()) {
 			await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
-				.catch((e) => functions.logger.error(e))
+				.catch((e) => logger.error(e))
 		}
 	})
