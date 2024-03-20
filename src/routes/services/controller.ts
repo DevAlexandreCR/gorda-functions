@@ -99,31 +99,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 				.catch((e) => logger.error(e))
 			break
 		case STATUS_CANCELED:
-			if (!wpNotificationsEnabled) return
-			notification = {
-				client_id: clientId.val(),
-				wp_client_id: wpClientId.val(),
-				driver_id: null,
-			}
-
-			await FBDatabase.dbWpNotifications().child(STATUS_CANCELED).child(serviceId).set(notification)
-				.catch((e) => logger.error(e))
-			await ServiceRepository.getServiceDB(serviceId)
-				.then(async (service) => {
-					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
-				})
-				.catch((e) => logger.error(e))
-			break
 		case STATUS_COMPLETED:
-			if (!wpNotificationsEnabled) return
-			notification = {
-				client_id: clientId.val(),
-				wp_client_id: wpClientId.val(),
-				driver_id: null,
-			}
-
-			await FBDatabase.dbWpNotifications().child(STATUS_COMPLETED).child(serviceId).set(notification)
-				.catch((e) => logger.error(e))
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
 					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
