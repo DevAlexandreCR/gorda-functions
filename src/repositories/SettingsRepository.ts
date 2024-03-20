@@ -31,6 +31,7 @@ class SettingsRepository {
 
 		if (!client) {
 			logger.info('wpNotifications disabled')
+			return Promise.resolve(false)
 		}
 
 		return Promise.resolve(client.assistant || client.wpNotifications || client.chatBot)
