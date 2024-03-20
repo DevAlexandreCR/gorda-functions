@@ -99,7 +99,31 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 				.catch((e) => logger.error(e))
 			break
 		case STATUS_CANCELED:
+			if (!wpNotificationsEnabled) return
+			notification = {
+				client_id: clientId.val(),
+				wp_client_id: wpClientId.val(),
+				driver_id: null,
+			}
+
+			await FBDatabase.dbWpNotifications().child(STATUS_CANCELED).child(serviceId).set(notification)
+				.catch((e) => logger.error(e))
+			await ServiceRepository.getServiceDB(serviceId)
+				.then(async (service) => {
+					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
+				})
+				.catch((e) => logger.error(e))
+			break
 		case STATUS_COMPLETED:
+			if (!wpNotificationsEnabled) return
+			notification = {
+				client_id: clientId.val(),
+				wp_client_id: wpClientId.val(),
+				driver_id: null,
+			}
+
+			await FBDatabase.dbWpNotifications().child(STATUS_COMPLETED).child(serviceId).set(notification)
+				.catch((e) => logger.error(e))
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
 					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
@@ -134,7 +158,7 @@ export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 	.onCreate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
+		const wpNotificationsEnabled = await SettingsRepository.mustAddNew(wpClientId.val())
 		if (!wpNotificationsEnabled) return
 
 		const clientId: string = await dataSnapshot.val()
