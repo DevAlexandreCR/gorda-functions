@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions'
+import {logger} from 'firebase-functions'
 import dayjs from 'dayjs'
 import MetricRepository from '../../repositories/MetricRepository'
 import {Request, Response, Router} from 'express'
@@ -10,7 +10,7 @@ import {getGlobalMetricValidator} from '../validators/metrics/GetGlobalMetricVal
 const controller = Router()
 
 controller.post('/populate', populateValidator, async (req: Request, res: Response) => {
-	functions.logger.info(`populate ${req.body.startDate}`, {structuredData: true})
+	logger.info(`populate ${req.body.startDate}`, {structuredData: true})
 
 	const errors = validationResult(req)
 	if (!errors.isEmpty()) {
@@ -37,7 +37,7 @@ controller.post('/populate', populateValidator, async (req: Request, res: Respon
 })
 
 controller.get('/global', getGlobalMetricValidator, async (req: Request, res: Response) => {
-	functions.logger.info(`get global metrics ${req.query.startDate}`, {structuredData: true})
+	logger.info(`get global metrics ${req.query.startDate}`, {structuredData: true})
 
 	const errors = validationResult(req)
 	if (!errors.isEmpty()) {
