@@ -8,8 +8,8 @@ class FBDatabase {
 		this.db = Admin.getInstance().db
 	}
 
-	public dbSessions(): Reference {
-		return this.db.ref('sessions/')
+	public dbDriversAssigned(): Reference {
+		return this.db.ref('drivers-assigned/')
 	}
 
 	public dbServices(): Reference {
