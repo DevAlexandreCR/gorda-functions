@@ -9,7 +9,7 @@ class FBDatabase {
 	}
 
 	public dbDriversAssigned(): Reference {
-		return this.db.ref('drivers-assigned/')
+		return this.db.ref('drivers_assigned/')
 	}
 
 	public dbServices(): Reference {
