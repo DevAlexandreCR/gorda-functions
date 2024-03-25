@@ -6,6 +6,7 @@ import {WpNotificationType} from '../../Types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
 import ServiceRepository from '../../repositories/ServiceRepository'
+import DriverRepository from '../../repositories/DriverRepository'
 
 const databaseRef = database.instance('gorda-driver-default-rtdb')
 
@@ -17,61 +18,73 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 	const refStatus = FBDatabase.dbServices().child(serviceId).child('status').ref
 	const refService = FBDatabase.dbServices().child(serviceId).ref
 
-	refApplicants.on('child_added', (dataSnapshot) => {
-		const applicant = dataSnapshot.val() as Applicant
-		applicant.id = dataSnapshot.key ?? ''
-		applicants.push(applicant)
-		applicants.sort((a, b) => a.time - b.time)
-	})
+	return new Promise<boolean>((resolve) => {
+		refApplicants.on('child_added', async (dataSnapshot) => {
+			const applicant = dataSnapshot.val() as Applicant
+			applicant.id = dataSnapshot.key ?? ''
+			const driverIndex = await DriverRepository.exists(applicant.id)
+			if (!driverIndex) {
+				applicants.push(applicant)
+				applicants.sort((a, b) => a.time - b.time)
+			} else {
+				logger.warn(`service ${serviceId} denied applicant ${applicant.id}, already has a service assigned`)
+			}
+		})
 
-	refStatus.on('value', (statusSnapshot) => {
-		const status = statusSnapshot.val() as string
-		if (status !== STATUS_PENDING) {
-			logger.warn(`service ${serviceId} have status ${status} aborting...`)
+		refStatus.on('value', (statusSnapshot) => {
+			const status = statusSnapshot.val() as string
+			if (status !== STATUS_PENDING) {
+				logger.warn(`service ${serviceId} have status ${status} aborting...`)
+				refApplicants.off()
+				refService.off()
+				refStatus.off()
+				canceled = true
+				clearTimeout(timeout)
+				resolve(false)
+			}
+		})
+
+		refApplicants.on('child_removed', (dataSnapshot) => {
+			const applicant = dataSnapshot.val() as Applicant
+			applicant.id = dataSnapshot.key ?? ''
+			logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
+			const index = applicants.findIndex((a) => a.id === applicant.id)
+			if (index >= 0) applicants.splice(index, 1)
+		})
+
+		const timeout = setTimeout(async () => {
 			refApplicants.off()
 			refService.off()
 			refStatus.off()
-			canceled = true
-			clearTimeout(timeout)
-		}
-	})
-
-	refApplicants.on('child_removed', (dataSnapshot) => {
-		const applicant = dataSnapshot.val() as Applicant
-		applicant.id = dataSnapshot.key ?? ''
-		logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
-		const index = applicants.findIndex((a) => a.id === applicant.id)
-		if (index >= 0) applicants.splice(index, 1)
-	})
-
-	const timeout = setTimeout(async () => {
-		refApplicants.off()
-		refService.off()
-		refStatus.off()
-		if (!canceled && applicants.length > 0) {
-			const applicant = applicants.shift()
-			const driver = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
-			if (!driver.exists()) {
-				refService.update({
-					status: 'in_progress',
-					driver_id: applicant?.id,
-				}).then(() => {
+			if (!canceled && applicants.length > 0) {
+				const applicant = applicants.shift()
+				const driver = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
+				if (!driver.exists()) {
+					refService.update({
+						status: 'in_progress',
+						driver_id: applicant?.id,
+					}).then(() => {
+						refService.off()
+						logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
+						resolve(true)
+					}).catch((e) => {
+						refService.off()
+						logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
+						console.table(applicants)
+						refService.child('applicants').remove()
+						resolve(false)
+					})
+				} else {
 					refService.off()
-					logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
-				}).catch((e) => {
-					refService.off()
-					logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
-					console.table(applicants)
-					refService.child('applicants').remove()
-				})
+					logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
+					resolve(false)
+				}
 			} else {
-				refService.off()
-				logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
+				logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
+				resolve(false)
 			}
-		} else {
-			logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
-		}
-	}, 15000)
+		}, 15000)
+	})
 })
 
 export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/status')
@@ -86,6 +99,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 		switch (dataSnapshot.after.val()) {
 		case STATUS_IN_PROGRESS:
+			if (driverId.exists()) await DriverRepository.addIndex(driverId.val())
 			if (!wpNotificationsEnabled) return
 			notification = {
 				client_id: clientId.val(),
@@ -100,6 +114,11 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 			break
 		case STATUS_CANCELED:
 		case STATUS_COMPLETED:
+			if (driverId.exists()) {
+				await DriverRepository.removeIndex(driverId.val()).catch((e) => {
+					logger.error('Error while remove driver index', e)
+				})
+			}
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
 					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
