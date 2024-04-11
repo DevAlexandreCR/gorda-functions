@@ -1,8 +1,8 @@
 import FBDatabase from '../services/firebase/FBDatabase'
 
 class DriverRepository {
-	async addIndex(driverId: string): Promise<void> {
-		return await FBDatabase.dbDriversAssigned().child(driverId).set(true)
+	async addIndex(driverId: string, serviceId: string): Promise<void> {
+		return await FBDatabase.dbDriversAssigned().child(driverId).set(serviceId)
 	}
 
 	async removeIndex(driverId: string): Promise<void> {
