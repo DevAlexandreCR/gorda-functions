@@ -99,7 +99,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 		switch (dataSnapshot.after.val()) {
 		case STATUS_IN_PROGRESS:
-			if (driverId.exists()) await DriverRepository.addIndex(driverId.val())
+			if (driverId.exists()) await DriverRepository.addIndex(driverId.val(), serviceId)
 			if (!wpNotificationsEnabled) return
 			notification = {
 				client_id: clientId.val(),
