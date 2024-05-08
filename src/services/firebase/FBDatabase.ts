@@ -12,6 +12,10 @@ class FBDatabase {
 		return this.db.ref('drivers_assigned/')
 	}
 
+	public dbDriversServiceConnections(): Reference {
+		return this.db.ref('service_connections/')
+	}
+
 	public dbServices(): Reference {
 		return this.db.ref('services/')
 	}

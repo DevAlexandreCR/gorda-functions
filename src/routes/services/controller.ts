@@ -22,10 +22,19 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 		refApplicants.on('child_added', async (dataSnapshot) => {
 			const applicant = dataSnapshot.val() as Applicant
 			applicant.id = dataSnapshot.key ?? ''
-			const driverIndex = await DriverRepository.exists(applicant.id)
-			if (!driverIndex) {
+			const driverIndexCurrent = await DriverRepository.indexCurrentExists(applicant.id)
+			const driverIndexConnection = await DriverRepository.getIndexConnectionIfExists(applicant.id)
+			if (!driverIndexCurrent || !driverIndexConnection) {
 				applicants.push(applicant)
-				applicants.sort((a, b) => a.time - b.time)
+				applicants.sort((a, b) => {
+					if ((a.connection && b.connection) || (!a.connection && !b.connection)) {
+						return a.time - b.time
+					} else if (a.connection) {
+						return 1
+					} else {
+						return -1
+					}
+				})
 			} else {
 				logger.warn(`service ${serviceId} denied applicant ${applicant.id}, already has a service assigned`)
 			}
@@ -63,9 +72,14 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 					refService.update({
 						status: 'in_progress',
 						driver_id: applicant?.id,
-					}).then(() => {
+					}).then(async () => {
 						refService.off()
 						logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
+						if (applicant && applicant.connection && applicant.id) {
+							await DriverRepository.addIndexConnection(applicant.id, applicant.connection)
+						} else if (applicant && applicant.id) {
+							await DriverRepository.addIndexCurrent(applicant.id, serviceId)
+						}
 						resolve(true)
 					}).catch((e) => {
 						refService.off()
@@ -87,6 +101,36 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 	})
 })
 
+export const onServiceReleased = databaseRef.ref('services/{serviceID}/driver_id')
+	.onDelete(async (dataSnapshot, context) => {
+		const serviceId = context.params.serviceID
+		const driverId = dataSnapshot.val()
+		if (driverId) {
+			const driverIndexConnection = await DriverRepository.getIndexConnectionIfExists(driverId)
+			if (driverIndexConnection) {
+				if (serviceId == driverIndexConnection) {
+					await DriverRepository.removeIndexConnection(driverId).catch((e) => {
+						logger.error('Error while remove driver index connection', e)
+					})
+				} else {
+					await DriverRepository.removeIndexConnection(driverId).catch((e) => {
+						logger.error('Error while remove driver index connection', e)
+					})
+					await DriverRepository.removeIndexCurrent(driverId).catch((e) => {
+						logger.error('Error while adding driver index current', e)
+					})
+					await DriverRepository.addIndexCurrent(driverId, driverIndexConnection).catch((e) => {
+						logger.error('Error while adding driver index current', e)
+					})
+				}
+			} else {
+				await DriverRepository.removeIndexCurrent(driverId).catch((e) => {
+					logger.error('Error while adding driver index current', e)
+				})
+			}
+		}
+	})
+
 export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/status')
 	.onUpdate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
@@ -99,7 +143,6 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 		switch (dataSnapshot.after.val()) {
 		case STATUS_IN_PROGRESS:
-			if (driverId.exists()) await DriverRepository.addIndex(driverId.val(), serviceId)
 			if (!wpNotificationsEnabled) return
 			notification = {
 				client_id: clientId.val(),
@@ -115,9 +158,27 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 		case STATUS_CANCELED:
 		case STATUS_COMPLETED:
 			if (driverId.exists()) {
-				await DriverRepository.removeIndex(driverId.val()).catch((e) => {
-					logger.error('Error while remove driver index', e)
-				})
+				const connection = await DriverRepository.getIndexConnectionIfExists(driverId.val())
+				if (connection) {
+					await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
+						logger.error('Error while remove driver index connection', e)
+					})
+					if (connection != serviceId) {
+						await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
+							logger.error('Error while remove driver index connection', e)
+						})
+						await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
+							logger.error('Error while adding driver index current', e)
+						})
+						await DriverRepository.addIndexCurrent(driverId.val(), connection).catch((e) => {
+							logger.error('Error while adding driver index current', e)
+						})
+					}
+				} else {
+					await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
+						logger.error('Error while remove driver index', e)
+					})
+				}
 			}
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
