@@ -139,6 +139,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
 		const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
 		let notification: WpNotificationType
+		let key: string
 		const driverId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
 
 		switch (dataSnapshot.after.val()) {
@@ -180,6 +181,17 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					})
 				}
 			}
+			if (wpNotificationsEnabled) {
+				key = dataSnapshot.after.val() === STATUS_CANCELED ? STATUS_CANCELED : STATUS_COMPLETED
+				notification = {
+					client_id: clientId.val(),
+					driver_id: null,
+					wp_client_id: wpClientId.val(),
+				}
+				await FBDatabase.dbWpNotifications().child(key).child(serviceId).set(notification)
+					.catch((e) => logger.error(e))
+			}
+
 			await ServiceRepository.getServiceDB(serviceId)
 				.then(async (service) => {
 					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
