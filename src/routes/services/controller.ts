@@ -8,7 +8,8 @@ import SettingsRepository from '../../repositories/SettingsRepository'
 import ServiceRepository from '../../repositories/ServiceRepository'
 import DriverRepository from '../../repositories/DriverRepository'
 
-const databaseRef = database.instance('gorda-driver-default-rtdb')
+const config = require('../../../config')
+const databaseRef = database.instance(config.DATABASE_INSTANCE)
 
 export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
 	let canceled = false
@@ -103,6 +104,7 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 
 export const onServiceReleased = databaseRef.ref('services/{serviceID}/driver_id')
 	.onDelete(async (dataSnapshot, context) => {
+		console.log('service released', context.params.serviceID)
 		const serviceId = context.params.serviceID
 		const driverId = dataSnapshot.val()
 		if (driverId) {
