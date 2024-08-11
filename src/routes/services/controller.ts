@@ -104,7 +104,6 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 
 export const onServiceReleased = databaseRef.ref('services/{serviceID}/driver_id')
 	.onDelete(async (dataSnapshot, context) => {
-		console.log('service released', context.params.serviceID)
 		const serviceId = context.params.serviceID
 		const driverId = dataSnapshot.val()
 		if (driverId) {
