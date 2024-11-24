@@ -1,6 +1,7 @@
 import FBDatabase from '../services/firebase/FBDatabase'
 import {logger} from 'firebase-functions'
 import {WpClient} from '../Types/WpClient'
+import { City } from '../Types/City'
 
 class SettingsRepository {
 	async isWpNotificationsEnabled(wpClient: string): Promise<boolean> {
@@ -36,6 +37,12 @@ class SettingsRepository {
 
 		return Promise.resolve(client.assistant || client.wpNotifications || client.chatBot)
 	}
+
+	async getCitySettings(branchID: string, cityID: string): Promise<City> {
+        return await FBDatabase.dbBranches().child(branchID).child(cityID).get().then((data) => {
+			return data.val()
+		})
+    }
 }
 
 export default new SettingsRepository()
