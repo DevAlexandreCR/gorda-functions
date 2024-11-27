@@ -39,6 +39,10 @@ class DriverRepository {
 	async saveBalance(driverID: string, balance: number): Promise<void> {
 		return await FBDatabase.dbDrivers().child(driverID).child('balance').set(balance)
 	}
+
+	async disableDriver(driverID: string): Promise<void> {
+		return await FBDatabase.dbDrivers().child(driverID).child('enabled_at').set(0)
+	}
 }
 
 export default new DriverRepository()

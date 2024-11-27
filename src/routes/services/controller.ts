@@ -253,3 +253,15 @@ export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 				.catch((e) => logger.error(e))
 		}
 	})
+
+export const listenDriverBalance = databaseRef.ref('drivers/{driverID}/balance')
+	.onUpdate(async (dataSnapshot, context) => {
+		const driverId = context.params.driverID
+		const balance = dataSnapshot.after.val()
+		if (balance <= 0) {
+			logger.warn(`Driver ${driverId} has negative balance: ${balance}`)
+			await DriverRepository.disableDriver(driverId).catch((e) => logger.error(e))
+		} else {
+			logger.info(`Driver ${driverId} has balance: ${balance}`)
+		}
+	})
