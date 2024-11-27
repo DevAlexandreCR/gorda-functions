@@ -18,6 +18,7 @@ export class ProcessBalanceAction {
             if (driver.paymentMode === DriverPaymentMode.PERCENTAGE && service.metadata?.trip_fee) {
                 const city = await this.getCity(service.start_loc.country, service.start_loc.city)
                 const discount = (service.metadata.trip_fee * city.percentage) / 100
+                console.log(`Discount for driver: ${city.percentage} -> ${discount} -> ${driver.balance}`)
                 driver.balance -= discount
                 await DriverRepository.saveBalance(driver.id, driver.balance)
             }

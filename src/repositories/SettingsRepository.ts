@@ -39,7 +39,7 @@ class SettingsRepository {
 	}
 
 	async getCitySettings(branchID: string, cityID: string): Promise<City> {
-        return await FBDatabase.dbBranches().child(branchID).child(cityID).get().then((data) => {
+        return await FBDatabase.dbBranches().child(branchID).child('cities').child(cityID).get().then((data) => {
 			return data.val()
 		})
     }
