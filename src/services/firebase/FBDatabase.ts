@@ -20,6 +20,14 @@ class FBDatabase {
 		return this.db.ref('services/')
 	}
 
+	public dbDrivers(): Reference {
+		return this.db.ref('drivers/')
+	}
+
+	public dbBranches(): Reference {
+		return this.db.ref('settings/branches/')
+	}
+
 	public dbWpNotifications(): Reference {
 		return this.db.ref('wp_notifications/')
 	}
