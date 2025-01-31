@@ -155,6 +155,15 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 			logger.debug(notification)
 
+			const exists = await FBDatabase.dbWpNotifications()
+				.child('assigned')
+				.child(serviceId)
+				.get()
+			if (exists.exists()) {
+				logger.warn('notification "assigned" already exists for service ' + serviceId)
+				return
+			}
+
 			await FBDatabase.dbWpNotifications().child('assigned').child(serviceId).set(notification)
 				.catch((e) => logger.error(e))
 			break
@@ -190,6 +199,14 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					driver_id: null,
 					wp_client_id: wpClientId.val(),
 				}
+				const exists = await FBDatabase.dbWpNotifications()
+					.child(key)
+					.child(serviceId)
+					.get()
+				if (exists.exists()) {
+					logger.warn('notification ' + key + ' already exists for service ' + serviceId)
+					return
+				}
 				await FBDatabase.dbWpNotifications().child(key).child(serviceId).set(notification)
 					.catch((e) => logger.error(e))
 			}
@@ -224,7 +241,14 @@ export const notificationArrived = databaseRef.ref('services/{serviceID}/metadat
 			wp_client_id: wpClientId.val(),
 			driver_id: null,
 		}
-
+		const exists = await FBDatabase.dbWpNotifications()
+			.child('arrived')
+			.child(serviceId)
+			.get()
+		if (exists.exists()) {
+			logger.warn('notification "arrived" already exists for service ' + serviceId)
+			return
+		}
 		await FBDatabase.dbWpNotifications().child('arrived').child(serviceId).set(notification)
 			.catch((e) => logger.error(e))
 	})
@@ -245,13 +269,14 @@ export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 
 		const exists = await FBDatabase.dbWpNotifications()
 			.child('new')
-			.orderByChild('client_id')
-			.equalTo(clientId)
+			.child(serviceId)
 			.get()
-		if (!exists.exists()) {
-			await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
-				.catch((e) => logger.error(e))
+		if (exists.exists()) {
+			logger.warn('notification "new" already exists for service ' + serviceId)
+			return
 		}
+		await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
+			.catch((e) => logger.error(e))
 	})
 
 export const listenDriverBalance = databaseRef.ref('drivers/{driverID}/balance')
