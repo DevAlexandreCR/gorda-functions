@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import FBDatabase from '../services/firebase/FBDatabase'
 import { DriverType } from '../types/DriverType'
 
@@ -34,6 +35,13 @@ class DriverRepository {
 		return await FBDatabase.dbDrivers().child(driverId).get().then((data) => {
 			return data.val()
 		})
+	} 
+
+	async addLastConnection(driverId: string): Promise<number> {
+		return await FBDatabase.dbDrivers().child(driverId).child('last_connection')
+			.set(dayjs().unix()).then(() => {
+				return dayjs().unix()
+			})
 	} 
 
 	async saveBalance(driverID: string, balance: number): Promise<void> {
