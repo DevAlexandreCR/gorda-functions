@@ -1,5 +1,5 @@
 import FBDatabase from '../services/firebase/FBDatabase'
-import { DriverType } from '../Types/DriverType'
+import { DriverType } from '../types/DriverType'
 
 class DriverRepository {
 	async addIndexCurrent(driverId: string, serviceId: string): Promise<void> {

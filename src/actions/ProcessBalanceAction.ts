@@ -1,8 +1,8 @@
 import DriverRepository from "../repositories/DriverRepository";
 import ServiceRepository from "../repositories/ServiceRepository";
 import SettingsRepository from "../repositories/SettingsRepository";
-import { City } from "../Types/City";
-import { DriverPaymentMode } from "../Types/DriverPaymentMode";
+import { City } from "../types/City";
+import { DriverPaymentMode } from "../types/DriverPaymentMode";
 
 export class ProcessBalanceAction {
     private serviceID: string

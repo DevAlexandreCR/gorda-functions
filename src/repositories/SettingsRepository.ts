@@ -1,7 +1,7 @@
 import FBDatabase from '../services/firebase/FBDatabase'
 import {logger} from 'firebase-functions'
-import {WpClient} from '../Types/WpClient'
-import { City } from '../Types/City'
+import {WpClient} from '../types/WpClient'
+import { City } from '../types/City'
 
 class SettingsRepository {
 	async isWpNotificationsEnabled(wpClient: string): Promise<boolean> {
