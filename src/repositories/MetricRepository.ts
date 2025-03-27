@@ -1,10 +1,10 @@
 import {WriteResult} from 'firebase-admin/lib/firestore'
 import FBFirestore from '../services/firebase/FBFirestore'
 import {QuerySnapshot} from 'firebase-admin/firestore'
-import {Metric} from '../Types/Metric'
-import {MetricType} from '../Types/MetricType'
+import {Metric} from '../types/Metric'
+import {MetricType} from '../types/MetricType'
 import ServiceRepository from './ServiceRepository'
-import {ServiceStatus} from '../Types/ServiceStatus'
+import {ServiceStatus} from '../types/ServiceStatus'
 import dayjs from 'dayjs'
 
 class MetricRepository {

@@ -2,12 +2,12 @@ import {logger, database} from 'firebase-functions'
 import FBDatabase from '../../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
-import {WpNotificationType} from '../../Types/WpNotificationType'
+import {WpNotificationType} from '../../types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
 import ServiceRepository from '../../repositories/ServiceRepository'
 import DriverRepository from '../../repositories/DriverRepository'
-import { ProcessBalanceAction } from '../../actions/ProcessBalanceAction'
+import {ProcessBalanceAction} from '../../actions/ProcessBalanceAction'
 
 const config = require('../../../config')
 const databaseRef = database.instance(config.DATABASE_INSTANCE)
@@ -145,7 +145,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 		const driverId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
 
 		switch (dataSnapshot.after.val()) {
-		case STATUS_IN_PROGRESS:
+		case STATUS_IN_PROGRESS: {
 			if (!wpNotificationsEnabled) return
 			notification = {
 				client_id: clientId.val(),
@@ -155,11 +155,21 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 			logger.debug(notification)
 
+			const exists = await FBDatabase.dbWpNotifications()
+				.child('assigned')
+				.child(serviceId)
+				.get()
+			if (exists.exists()) {
+				logger.warn('notification "assigned" already exists for service ' + serviceId)
+				return
+			}
+
 			await FBDatabase.dbWpNotifications().child('assigned').child(serviceId).set(notification)
 				.catch((e) => logger.error(e))
 			break
+		}
 		case STATUS_CANCELED:
-		case STATUS_COMPLETED:
+		case STATUS_COMPLETED: {
 			if (driverId.exists()) {
 				const connection = await DriverRepository.getIndexConnectionIfExists(driverId.val())
 				if (connection) {
@@ -190,6 +200,14 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					driver_id: null,
 					wp_client_id: wpClientId.val(),
 				}
+				const exists = await FBDatabase.dbWpNotifications()
+					.child(key)
+					.child(serviceId)
+					.get()
+				if (exists.exists()) {
+					logger.warn('notification ' + key + ' already exists for service ' + serviceId)
+					return
+				}
 				await FBDatabase.dbWpNotifications().child(key).child(serviceId).set(notification)
 					.catch((e) => logger.error(e))
 			}
@@ -198,13 +216,14 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 				.then(async (service) => {
 					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
 				})
-					.catch((e) => logger.error(e))
-				if (dataSnapshot.after.val() === STATUS_COMPLETED) {
-					logger.info('process balance')
-					const action = new ProcessBalanceAction(serviceId)
-					await action.execute().catch((e) => logger.error(e))
-				}
+				.catch((e) => logger.error(e))
+			if (dataSnapshot.after.val() === STATUS_COMPLETED) {
+				logger.info('process balance')
+				const action = new ProcessBalanceAction(serviceId)
+				await action.execute().catch((e) => logger.error(e))
+			}
 			break
+		}
 		default:
 			logger.info('service ' + dataSnapshot.after.val())
 			break
@@ -224,7 +243,14 @@ export const notificationArrived = databaseRef.ref('services/{serviceID}/metadat
 			wp_client_id: wpClientId.val(),
 			driver_id: null,
 		}
-
+		const exists = await FBDatabase.dbWpNotifications()
+			.child('arrived')
+			.child(serviceId)
+			.get()
+		if (exists.exists()) {
+			logger.warn('notification "arrived" already exists for service ' + serviceId)
+			return
+		}
 		await FBDatabase.dbWpNotifications().child('arrived').child(serviceId).set(notification)
 			.catch((e) => logger.error(e))
 	})
@@ -245,13 +271,14 @@ export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 
 		const exists = await FBDatabase.dbWpNotifications()
 			.child('new')
-			.orderByChild('client_id')
-			.equalTo(clientId)
+			.child(serviceId)
 			.get()
-		if (!exists.exists()) {
-			await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
-				.catch((e) => logger.error(e))
+		if (exists.exists()) {
+			logger.warn('notification "new" already exists for service ' + serviceId)
+			return
 		}
+		await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
+			.catch((e) => logger.error(e))
 	})
 
 export const listenDriverBalance = databaseRef.ref('drivers/{driverID}/balance')
