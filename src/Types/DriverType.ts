@@ -1,4 +1,4 @@
-import { DriverPaymentMode } from "./DriverPaymentMode"
+import {DriverPaymentMode} from './DriverPaymentMode'
 
 export type DriverType = {
     id: string

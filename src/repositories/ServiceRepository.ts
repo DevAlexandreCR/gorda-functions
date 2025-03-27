@@ -1,9 +1,9 @@
-import {ServiceType} from '../Types/ServiceInterface'
+import {ServiceType} from '../types/ServiceInterface'
 import FBDatabase from '../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import FBFirestore from '../services/firebase/FBFirestore'
 import {WriteResult} from 'firebase-admin/firestore'
-import {ServiceStatus} from '../Types/ServiceStatus'
+import {ServiceStatus} from '../types/ServiceStatus'
 
 class ServiceRepository {
 	async getServiceDB(id: string): Promise<ServiceType> {
