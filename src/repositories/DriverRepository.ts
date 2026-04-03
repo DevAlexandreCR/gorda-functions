@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import FBDatabase from '../services/firebase/FBDatabase'
 import {DriverType} from '../types/DriverType'
+import {masterDataGet, masterDataPatch} from '../services/masterDataApi'
 
 class DriverRepository {
 	async addIndexCurrent(driverId: string, serviceId: string): Promise<void> {
@@ -32,24 +33,24 @@ class DriverRepository {
 	}
 
 	async getDriver(driverId: string): Promise<DriverType> {
-		return await FBDatabase.dbDrivers().child(driverId).get().then((data) => {
-			return data.val()
-		})
+		const response = await masterDataGet(`/public/drivers/${driverId}`)
+		return response.data.driver as DriverType
 	}
 
 	async addLastConnection(driverId: string): Promise<number> {
-		return await FBDatabase.dbDrivers().child(driverId).child('last_connection')
-			.set(dayjs().unix()).then(() => {
-				return dayjs().unix()
-			})
+		const unixTime = dayjs().unix()
+		await masterDataPatch(`/public/drivers/${driverId}/last-connection`, {
+			last_connection: unixTime,
+		})
+		return unixTime
 	}
 
 	async saveBalance(driverID: string, balance: number): Promise<void> {
-		return await FBDatabase.dbDrivers().child(driverID).child('balance').set(balance)
+		await masterDataPatch(`/public/drivers/${driverID}/balance`, {balance})
 	}
 
 	async disableDriver(driverID: string): Promise<void> {
-		return await FBDatabase.dbDrivers().child(driverID).child('enabled_at').set(0)
+		await masterDataPatch(`/public/drivers/${driverID}/enabled`, {enabled_at: 0})
 	}
 }
 

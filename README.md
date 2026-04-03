@@ -26,6 +26,7 @@ This project acts as the backend service for the Gorda application. It provides 
    npm install
    ```
 2. **Create a `.env` file** based on `.env.example` and configure Firebase emulator/credentials.
+   Set `GORDA_MASTER_DATA_API_URL` to the API root origin used by the functions runtime, for example `http://host.docker.internal:3000` in local Docker-based development.
 3. **Build the project**
    ```bash
    npm run build
@@ -58,6 +59,10 @@ The Express application exposes endpoints under the `api` export. Notable routes
 - `GET  /metrics/global` – retrieve stored metrics.
 
 All endpoints validate input using `express-validator` before performing Firebase operations.
+
+## Integration with API
+
+Firebase Functions consume the public integration endpoints exposed by the `api` service. Configure `GORDA_MASTER_DATA_API_URL` with the API root origin only. Functions build explicit `/public/...` paths when reading or updating master data and drivers.
 
 ## Components
 
