@@ -5,9 +5,9 @@ import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
-import ServiceRepository from '../../repositories/ServiceRepository'
 import DriverRepository from '../../repositories/DriverRepository'
 import {ProcessBalanceAction} from '../../actions/ProcessBalanceAction'
+import {internalApiPost} from '../../services/masterDataApi'
 
 const config = require('../../../config')
 const databaseRef = database.instance(config.DATABASE_INSTANCE)
@@ -212,11 +212,8 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					.catch((e) => logger.error(e))
 			}
 
-			await ServiceRepository.getServiceDB(serviceId)
-				.then(async (service) => {
-					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
-				})
-				.catch((e) => logger.error(e))
+			await internalApiPost('/internal/service-history/finalize', {serviceId})
+				.catch((e) => logger.error('Error finalizing SQL service history', e))
 			if (dataSnapshot.after.val() === STATUS_COMPLETED) {
 				logger.info('process balance')
 				const action = new ProcessBalanceAction(serviceId)
