@@ -27,6 +27,7 @@ This project acts as the backend service for the Gorda application. It provides 
    ```
 2. **Create a `.env` file** based on `.env.example` and configure Firebase emulator/credentials.
    Set `GORDA_MASTER_DATA_API_URL` to the API root origin used by the functions runtime, for example `http://host.docker.internal:3000` in local Docker-based development.
+   Set `SERVER_API_KEY` to the same value configured in the protected `api` service. Internal SQL finalization calls use this bearer token at runtime.
 3. **Build the project**
    ```bash
    npm run build
@@ -63,6 +64,8 @@ All endpoints validate input using `express-validator` before performing Firebas
 ## Integration with API
 
 Firebase Functions consume the public integration endpoints exposed by the `api` service. Configure `GORDA_MASTER_DATA_API_URL` with the API root origin only. Functions build explicit `/public/...` paths when reading or updating master data and drivers.
+
+For protected internal routes such as `/internal/service-history/finalize`, configure `SERVER_API_KEY` in the functions runtime and make it match `api` exactly. Release validation should fail if either side is missing this shared secret.
 
 ## Components
 

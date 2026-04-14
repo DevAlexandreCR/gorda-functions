@@ -30,9 +30,10 @@ module.exports = {
 		'semi': ['error', 'never'],
 		'indent': [2, 'tab'],
 		'no-tabs': 0,
-		'linebreak-style': ['error', 'windows'],
+		'linebreak-style': 'off',
 		'import/no-unresolved': 0,
 		'@typescript-eslint/no-var-requires': 'off',
+		'valid-jsdoc': 'off',
 		'require-jsdoc': ['error', {
 			'require': {
 				'FunctionDeclaration': true,

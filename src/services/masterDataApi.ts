@@ -2,6 +2,7 @@ const rawMasterDataBaseUrl = process.env.GORDA_MASTER_DATA_API_URL || 'http://lo
 
 const masterDataBaseUrl = rawMasterDataBaseUrl.replace(/\/+$/, '')
 const internalApiBaseUrl = masterDataBaseUrl.replace(/\/public$/, '')
+type JsonObject = Record<string, unknown>
 
 export type MasterDataEnvelope<T> = {
 	success: boolean
@@ -9,7 +10,22 @@ export type MasterDataEnvelope<T> = {
 	data: T
 }
 
-export async function masterDataGet<T = Record<string, any>>(path: string): Promise<MasterDataEnvelope<T>> {
+const buildInternalApiHeaders = (): Record<string, string> => {
+	const apiKey = process.env.SERVER_API_KEY
+	if (!apiKey) {
+		throw new Error('SERVER_API_KEY environment variable is required for internal API requests')
+	}
+
+	return {
+		'Content-Type': 'application/json',
+		'Authorization': `Bearer ${apiKey}`,
+	}
+}
+
+/**
+ * Reads public SQL-backed data exposed by the API adapter.
+ */
+export async function masterDataGet<T = JsonObject>(path: string): Promise<MasterDataEnvelope<T>> {
 	const response = await fetch(`${masterDataBaseUrl}${path}`)
 	if (!response.ok) {
 		throw new Error(`Master data GET failed: ${response.status} ${response.statusText}`)
@@ -17,10 +33,13 @@ export async function masterDataGet<T = Record<string, any>>(path: string): Prom
 	return response.json() as Promise<MasterDataEnvelope<T>>
 }
 
+/**
+ * Updates public SQL-backed data exposed by the API adapter.
+ */
 export async function masterDataPatch(
 	path: string,
-	body: Record<string, any>
-): Promise<MasterDataEnvelope<Record<string, any>>> {
+	body: JsonObject
+): Promise<MasterDataEnvelope<JsonObject>> {
 	const response = await fetch(`${masterDataBaseUrl}${path}`, {
 		method: 'PATCH',
 		headers: {
@@ -33,25 +52,19 @@ export async function masterDataPatch(
 		throw new Error(`Master data PATCH failed: ${response.status} ${response.statusText}`)
 	}
 
-	return response.json() as Promise<MasterDataEnvelope<Record<string, any>>>
+	return response.json() as Promise<MasterDataEnvelope<JsonObject>>
 }
 
-export async function internalApiPost<T = Record<string, any>>(
+/**
+ * Calls protected internal API routes that require the shared server API key.
+ */
+export async function internalApiPost<T = JsonObject>(
 	path: string,
-	body: Record<string, any>
+	body: JsonObject
 ): Promise<MasterDataEnvelope<T>> {
-	const apiKey = process.env.SERVER_API_KEY || ''
-	const headers: Record<string, string> = {
-		'Content-Type': 'application/json',
-	}
-
-	if (apiKey) {
-		headers.Authorization = `Bearer ${apiKey}`
-	}
-
 	const response = await fetch(`${internalApiBaseUrl}${path}`, {
 		method: 'POST',
-		headers,
+		headers: buildInternalApiHeaders(),
 		body: JSON.stringify(body),
 	})
 

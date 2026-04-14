@@ -29,7 +29,9 @@ class SettingsRepository {
 	}
 
 	async getCitySettings(branchID: string, cityID: string): Promise<City> {
-		const response = await masterDataGet<{ city: City }>(`/public/master-data/branches/${branchID}/cities/${cityID}`)
+		const response = await masterDataGet<{ city: City }>(
+			`/public/master-data/branches/${branchID}/cities/${cityID}`
+		)
 		return response.data.city
 	}
 }
