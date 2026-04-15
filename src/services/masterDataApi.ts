@@ -1,3 +1,6 @@
+import {readFileSync} from 'fs'
+import path from 'path'
+
 const rawMasterDataBaseUrl = process.env.GORDA_MASTER_DATA_API_URL || 'http://localhost:3000'
 
 const masterDataBaseUrl = rawMasterDataBaseUrl.replace(/\/+$/, '')
@@ -10,7 +13,17 @@ export type MasterDataEnvelope<T> = {
 	data: T
 }
 
-const buildInternalApiHeaders = (): Record<string, string> => {
+const getFunctionsClientVersion = (): string => {
+	try {
+		const packageJsonPath = path.resolve(__dirname, '../../package.json')
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {version?: string}
+		return packageJson.version || '2.0.0'
+	} catch (_error) {
+		return '2.0.0'
+	}
+}
+
+export const buildInternalApiHeaders = (): Record<string, string> => {
 	const apiKey = process.env.SERVER_API_KEY
 	if (!apiKey) {
 		throw new Error('SERVER_API_KEY environment variable is required for internal API requests')
@@ -19,6 +32,8 @@ const buildInternalApiHeaders = (): Record<string, string> => {
 	return {
 		'Content-Type': 'application/json',
 		'Authorization': `Bearer ${apiKey}`,
+		'X-Client-Platform': 'functions',
+		'X-Client-Version': getFunctionsClientVersion(),
 	}
 }
 

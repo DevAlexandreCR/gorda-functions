@@ -65,7 +65,9 @@ All endpoints validate input using `express-validator` before performing Firebas
 
 Firebase Functions consume the public integration endpoints exposed by the `api` service. Configure `GORDA_MASTER_DATA_API_URL` with the API root origin only. Functions build explicit `/public/...` paths when reading or updating master data and drivers.
 
-For protected internal routes such as `/internal/service-history/finalize`, configure `SERVER_API_KEY` in the functions runtime and make it match `api` exactly. Release validation should fail if either side is missing this shared secret.
+For protected internal routes such as `/internal/service-history/finalize`, configure `SERVER_API_KEY` in the functions runtime and make it match `api` exactly. These server-to-server calls authenticate with the shared bearer token and send `X-Client-Platform: functions` plus the functions package version for observability.
+
+Admin version gating applies to admin-facing protected routes only. Internal server-to-server routes should not be blocked by the admin minimum-version policy.
 
 ## Components
 
