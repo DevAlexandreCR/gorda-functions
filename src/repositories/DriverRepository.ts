@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import FBDatabase from '../services/firebase/FBDatabase'
 import {DriverType} from '../types/DriverType'
 import {masterDataGet, masterDataPatch} from '../services/masterDataApi'
+import {buildDriverAvailability} from '../services/DriverAvailability'
 
 class DriverRepository {
 	async addIndexCurrent(driverId: string, serviceId: string): Promise<void> {
@@ -34,7 +35,11 @@ class DriverRepository {
 
 	async getDriver(driverId: string): Promise<DriverType> {
 		const response = await masterDataGet(`/public/drivers/${driverId}`)
-		return response.data.driver as DriverType
+		const driver = response.data.driver as DriverType
+		return {
+			...driver,
+			availability: driver.availability ?? buildDriverAvailability(driver),
+		}
 	}
 
 	async addLastConnection(driverId: string): Promise<number> {
@@ -45,12 +50,21 @@ class DriverRepository {
 		return unixTime
 	}
 
-	async saveBalance(driverID: string, balance: number): Promise<void> {
-		await masterDataPatch(`/public/drivers/${driverID}/balance`, {balance})
+	async saveBalance(driverID: string, balance: number): Promise<DriverType> {
+		const response = await masterDataPatch(`/public/drivers/${driverID}/balance`, {balance})
+		const driver = (response.data as {driver: DriverType}).driver
+		return {
+			...driver,
+			availability: driver.availability ?? buildDriverAvailability(driver),
+		}
 	}
 
 	async disableDriver(driverID: string): Promise<void> {
 		await masterDataPatch(`/public/drivers/${driverID}/enabled`, {enabled_at: 0})
+	}
+
+	async removeOnlinePresence(driverId: string): Promise<void> {
+		await FBDatabase.dbOnlineDrivers().child(driverId).remove()
 	}
 }
 

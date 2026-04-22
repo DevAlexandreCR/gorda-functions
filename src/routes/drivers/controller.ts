@@ -16,6 +16,30 @@ export const onDriverDisconnected = databaseRef.ref('online_drivers/{driverId}')
 
 export const onDriverConnected = databaseRef.ref('online_drivers/{driverId}').onCreate(async (snapshot, context) => {
 	const driverId = context.params.driverId
+	const driver = await DriverRepository.getDriver(driverId).catch((e) => {
+		logger.error('Error loading driver eligibility on connect', {
+			driverId,
+			error: e instanceof Error ? e.message : String(e),
+		})
+		return null
+	})
+
+	if (driver?.availability && !driver.availability.canGoOnline) {
+		await snapshot.ref.remove().catch((e) => {
+			logger.error('Error removing ineligible online driver presence', {
+				driverId,
+				error: e instanceof Error ? e.message : String(e),
+			})
+		})
+		logger.warn('driver online presence denied', {
+			driverId,
+			reason: driver.availability.reason,
+			paymentMode: driver.availability.paymentMode,
+			balance: driver.availability.balance,
+			enabledAt: driver.availability.enabledAt,
+		})
+		return
+	}
 
 	await DriverRepository.addLastConnection(driverId).then((unixTime) => {
 		logger.info(`Driver ${driverId} connected at ${unixTime}`)

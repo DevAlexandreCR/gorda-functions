@@ -1,4 +1,5 @@
 import {DriverPaymentMode} from './DriverPaymentMode'
+import {DriverAvailabilityType} from './DriverAvailabilityType'
 
 export type DriverType = {
     id: string
@@ -16,4 +17,5 @@ export type DriverType = {
     balance: number
     enabled_at: number
     created_at: number
+    availability?: DriverAvailabilityType
 }

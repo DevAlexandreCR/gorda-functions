@@ -1,3 +1,4 @@
+import {logger} from 'firebase-functions'
 import DriverRepository from '../repositories/DriverRepository'
 import ServiceRepository from '../repositories/ServiceRepository'
 import SettingsRepository from '../repositories/SettingsRepository'
@@ -18,9 +19,27 @@ export class ProcessBalanceAction {
 			if (driver.paymentMode === DriverPaymentMode.PERCENTAGE && service.metadata?.trip_fee) {
 				const city = await this.getCity(service.start_loc.country, service.start_loc.city)
 				const discount = (service.metadata.trip_fee * city.percentage) / 100
-				console.log(`Discount for driver: ${city.percentage} -> ${discount} -> ${driver.balance}`)
+				logger.info('driver balance discount calculated', {
+					serviceId: this.serviceID,
+					driverId: driver.id,
+					paymentMode: driver.paymentMode,
+					balanceBefore: driver.balance,
+					cityPercentage: city.percentage,
+					discount,
+				})
 				driver.balance -= discount
-				await DriverRepository.saveBalance(driver.id, driver.balance)
+				const updatedDriver = await DriverRepository.saveBalance(driver.id, driver.balance)
+				if (updatedDriver.balance <= 0) {
+					await DriverRepository.removeOnlinePresence(updatedDriver.id)
+					logger.warn('driver automatically disabled by balance', {
+						serviceId: this.serviceID,
+						driverId: updatedDriver.id,
+						paymentMode: updatedDriver.paymentMode,
+						balance: updatedDriver.balance,
+						enabledAt: updatedDriver.enabled_at,
+						reason: updatedDriver.availability?.reason,
+					})
+				}
 			}
 		}
 	}
