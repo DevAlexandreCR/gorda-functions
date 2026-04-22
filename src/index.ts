@@ -1,3 +1,5 @@
+import path from 'path'
+import dotenv from 'dotenv'
 import * as functions from 'firebase-functions'
 import express, {Express} from 'express'
 import cors from 'cors'
@@ -8,6 +10,8 @@ import * as drivers from './routes/drivers/controller'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
+
+dotenv.config({path: path.resolve(__dirname, '../.env'), override: true})
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
