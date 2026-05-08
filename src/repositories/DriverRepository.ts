@@ -13,6 +13,18 @@ class DriverRepository {
 		return await FBDatabase.dbDriversAssigned().child(driverId).remove()
 	}
 
+	async removeIndexCurrentIfMatches(driverId: string, serviceId: string): Promise<boolean> {
+		let matched = false
+		const result = await FBDatabase.dbDriversAssigned().child(driverId).transaction((currentValue) => {
+			if (currentValue === serviceId) {
+				matched = true
+				return null
+			}
+			return currentValue
+		})
+		return matched && !result.snapshot.exists()
+	}
+
 	async indexCurrentExists(driverId: string): Promise<boolean> {
 		return await FBDatabase.dbDriversAssigned().child(driverId).get().then((data) => {
 			return data.exists()
@@ -25,6 +37,34 @@ class DriverRepository {
 
 	async removeIndexConnection(driverId: string): Promise<void> {
 		return await FBDatabase.dbDriversServiceConnections().child(driverId).remove()
+	}
+
+	async removeIndexConnectionIfMatches(driverId: string, serviceId: string): Promise<boolean> {
+		let matched = false
+		const result = await FBDatabase.dbDriversServiceConnections().child(driverId).transaction((currentValue) => {
+			if (currentValue === serviceId) {
+				matched = true
+				return null
+			}
+			return currentValue
+		})
+		return matched && !result.snapshot.exists()
+	}
+
+	async replaceIndexCurrentIfMatches(
+		driverId: string,
+		expectedServiceId: string,
+		nextServiceId: string
+	): Promise<boolean> {
+		let matched = false
+		const result = await FBDatabase.dbDriversAssigned().child(driverId).transaction((currentValue) => {
+			if (currentValue === expectedServiceId) {
+				matched = true
+				return nextServiceId
+			}
+			return currentValue
+		})
+		return matched && result.snapshot.val() === nextServiceId
 	}
 
 	async getIndexConnectionIfExists(driverId: string): Promise<string|false> {

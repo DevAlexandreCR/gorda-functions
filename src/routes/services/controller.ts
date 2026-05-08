@@ -37,6 +37,65 @@ const logApplicantsSnapshot = (serviceId: string, applicants: Applicant[]): void
 	})
 }
 
+const getDriverPointerSnapshot = async (driverId: string): Promise<{
+	currentServiceId: string|null
+	connectionServiceId: string|null
+}> => {
+	const [currentSnapshot, connectionSnapshot] = await Promise.all([
+		FBDatabase.dbDriversAssigned().child(driverId).get(),
+		FBDatabase.dbDriversServiceConnections().child(driverId).get(),
+	])
+
+	return {
+		currentServiceId: currentSnapshot.exists() ? currentSnapshot.val() as string : null,
+		connectionServiceId: connectionSnapshot.exists() ? connectionSnapshot.val() as string : null,
+	}
+}
+
+const finalizeDriverPointersForService = async (
+	driverId: string,
+	serviceId: string
+): Promise<void> => {
+	let pointerSnapshot = await getDriverPointerSnapshot(driverId)
+
+	if (pointerSnapshot.connectionServiceId === serviceId) {
+		await DriverRepository.removeIndexConnectionIfMatches(driverId, serviceId).catch((e) => {
+			logger.error('Error removing matching driver connection pointer', e)
+		})
+		pointerSnapshot = {
+			...pointerSnapshot,
+			connectionServiceId: null,
+		}
+	}
+
+	if (pointerSnapshot.currentServiceId !== serviceId) {
+		return
+	}
+
+	const nextConnectionServiceId = pointerSnapshot.connectionServiceId
+	if (nextConnectionServiceId && nextConnectionServiceId !== serviceId) {
+		const clearedConnection = await DriverRepository
+			.removeIndexConnectionIfMatches(driverId, nextConnectionServiceId)
+			.catch((e) => {
+				logger.error('Error removing queued connection pointer for promotion', e)
+				return false
+			})
+
+		if (clearedConnection) {
+			await DriverRepository
+				.replaceIndexCurrentIfMatches(driverId, serviceId, nextConnectionServiceId)
+				.catch((e) => {
+					logger.error('Error promoting queued connection to current pointer', e)
+				})
+			return
+		}
+	}
+
+	await DriverRepository.removeIndexCurrentIfMatches(driverId, serviceId).catch((e) => {
+		logger.error('Error removing matching current driver pointer', e)
+	})
+}
+
 const rejectApplicant = async (
 	serviceId: string,
 	refApplicants: ReturnType<typeof FBDatabase.dbServices>,
@@ -332,27 +391,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 		case STATUS_CANCELED:
 		case STATUS_COMPLETED: {
 			if (driverId.exists()) {
-				const connection = await DriverRepository.getIndexConnectionIfExists(driverId.val())
-				if (connection) {
-					await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
-						logger.error('Error while remove driver index connection', e)
-					})
-					if (connection != serviceId) {
-						await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
-							logger.error('Error while remove driver index connection', e)
-						})
-						await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
-							logger.error('Error while adding driver index current', e)
-						})
-						await DriverRepository.addIndexCurrent(driverId.val(), connection).catch((e) => {
-							logger.error('Error while adding driver index current', e)
-						})
-					}
-				} else {
-					await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
-						logger.error('Error while remove driver index', e)
-					})
-				}
+				await finalizeDriverPointersForService(driverId.val(), serviceId)
 			}
 			if (wpNotificationsEnabled) {
 				key = dataSnapshot.after.val() === STATUS_CANCELED ? STATUS_CANCELED : STATUS_COMPLETED
