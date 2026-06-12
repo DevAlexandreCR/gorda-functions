@@ -7,11 +7,47 @@ import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} f
 import SettingsRepository from '../../repositories/SettingsRepository'
 import DriverRepository from '../../repositories/DriverRepository'
 import {ProcessBalanceAction} from '../../actions/ProcessBalanceAction'
-import {internalApiPost} from '../../services/masterDataApi'
+import {internalApiPost, internalApiGet, MasterDataEnvelope} from '../../services/masterDataApi'
 import {DriverAvailabilityType} from '../../types/DriverAvailabilityType'
 
 const config = require('../../../config')
 const databaseRef = database.instance(config.DATABASE_INSTANCE)
+
+type ActiveVehicleResponse = {
+	vehicle_id: string | null
+	plate?: string
+	brand?: string | null
+	model?: string | null
+	color?: {name: string; hex?: string} | null
+}
+
+const writeVehicleSnapshot = async (serviceId: string, driverId: string): Promise<void> => {
+	const vehicleRef = FBDatabase.dbServices().child(serviceId).child('vehicle')
+	const existing = await vehicleRef.get()
+	if (existing.exists()) {
+		logger.info('vehicle snapshot already set, skipping write', {serviceId})
+		return
+	}
+
+	const envelope = await internalApiGet<ActiveVehicleResponse>(
+		`/internal/drivers/${driverId}/active-vehicle`
+	)
+
+	const vehicleData = (envelope as MasterDataEnvelope<ActiveVehicleResponse>).data
+	if (!vehicleData.vehicle_id) {
+		logger.warn('no active vehicle found for driver, skipping snapshot', {serviceId, driverId})
+		return
+	}
+
+	await vehicleRef.set({
+		plate: vehicleData.plate ?? null,
+		brand: vehicleData.brand ?? null,
+		model: vehicleData.model ?? null,
+		color: vehicleData.color ?? null,
+	})
+
+	logger.info('vehicle snapshot written to RTDB', {serviceId, driverId, plate: vehicleData.plate})
+}
 
 const sortApplicants = (applicants: Applicant[]): void => {
 	applicants.sort((a, b) => {
@@ -285,6 +321,15 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 							driverId: applicant?.id,
 							connection: applicant?.connection ?? null,
 						})
+						if (applicant && applicant.id) {
+							await writeVehicleSnapshot(serviceId, applicant.id).catch((e) => {
+								logger.error('Error writing vehicle snapshot to RTDB', {
+									serviceId,
+									driverId: applicant.id,
+									error: e instanceof Error ? e.message : String(e),
+								})
+							})
+						}
 						if (applicant && applicant.connection && applicant.id) {
 							await DriverRepository.addIndexConnection(applicant.id, applicant.connection)
 						} else if (applicant && applicant.id) {

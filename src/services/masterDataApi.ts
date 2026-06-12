@@ -89,3 +89,19 @@ export async function internalApiPost<T = JsonObject>(
 
 	return response.json() as Promise<MasterDataEnvelope<T>>
 }
+
+/**
+ * Reads protected internal API routes that require the shared server API key.
+ */
+export async function internalApiGet<T = JsonObject>(path: string): Promise<MasterDataEnvelope<T>> {
+	const response = await fetch(`${internalApiBaseUrl}${path}`, {
+		method: 'GET',
+		headers: buildInternalApiHeaders(),
+	})
+
+	if (!response.ok) {
+		throw new Error(`Internal API GET failed: ${response.status} ${response.statusText}`)
+	}
+
+	return response.json() as Promise<MasterDataEnvelope<T>>
+}
