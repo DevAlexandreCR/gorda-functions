@@ -12,16 +12,16 @@ class FBDatabase {
 		return this.db.ref('drivers_assigned/')
 	}
 
+	public dbOnlineDrivers(): Reference {
+		return this.db.ref('online_drivers/')
+	}
+
 	public dbDriversServiceConnections(): Reference {
 		return this.db.ref('service_connections/')
 	}
 
 	public dbServices(): Reference {
 		return this.db.ref('services/')
-	}
-
-	public dbDrivers(): Reference {
-		return this.db.ref('drivers/')
 	}
 
 	public dbBranches(): Reference {

@@ -13,13 +13,3 @@ export const onDriverDisconnected = databaseRef.ref('online_drivers/{driverId}')
 		logger.error(`Error onDriverDisconnected ${e}`)
 	})
 })
-
-export const onDriverConnected = databaseRef.ref('online_drivers/{driverId}').onCreate(async (snapshot, context) => {
-	const driverId = context.params.driverId
-
-	await DriverRepository.addLastConnection(driverId).then((unixTime) => {
-		logger.info(`Driver ${driverId} connected at ${unixTime}`)
-	}).catch((e) => {
-		logger.error(`Error onDriverConnected ${e}`)
-	})
-})

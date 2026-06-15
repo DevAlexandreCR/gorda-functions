@@ -5,12 +5,218 @@ import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../types/WpNotificationType'
 import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
-import ServiceRepository from '../../repositories/ServiceRepository'
 import DriverRepository from '../../repositories/DriverRepository'
 import {ProcessBalanceAction} from '../../actions/ProcessBalanceAction'
+import {internalApiPost, internalApiGet, MasterDataEnvelope} from '../../services/masterDataApi'
+import {DriverAvailabilityType} from '../../types/DriverAvailabilityType'
 
 const config = require('../../../config')
 const databaseRef = database.instance(config.DATABASE_INSTANCE)
+
+type ActiveVehicleResponse = {
+	vehicle_id: string | null
+	plate?: string
+	brand?: string | null
+	model?: string | null
+	color?: {name: string; hex?: string} | null
+}
+
+const writeVehicleSnapshot = async (serviceId: string, driverId: string): Promise<void> => {
+	const vehicleRef = FBDatabase.dbServices().child(serviceId).child('vehicle')
+	const existing = await vehicleRef.get()
+	if (existing.exists()) {
+		logger.info('vehicle snapshot already set, skipping write', {serviceId})
+		return
+	}
+
+	const envelope = await internalApiGet<ActiveVehicleResponse>(
+		`/internal/drivers/${driverId}/active-vehicle`
+	)
+
+	const vehicleData = (envelope as MasterDataEnvelope<ActiveVehicleResponse>).data
+	if (!vehicleData.vehicle_id) {
+		logger.warn('no active vehicle found for driver, skipping snapshot', {serviceId, driverId})
+		return
+	}
+
+	await vehicleRef.set({
+		plate: vehicleData.plate ?? null,
+		brand: vehicleData.brand ?? null,
+		model: vehicleData.model ?? null,
+		color: vehicleData.color ?? null,
+	})
+
+	logger.info('vehicle snapshot written to RTDB', {serviceId, driverId, plate: vehicleData.plate})
+}
+
+const sortApplicants = (applicants: Applicant[]): void => {
+	applicants.sort((a, b) => {
+		if ((a.connection && b.connection) || (!a.connection && !b.connection)) {
+			return a.time - b.time
+		} else if (a.connection) {
+			return 1
+		} else {
+			return -1
+		}
+	})
+}
+
+const logApplicantsSnapshot = (serviceId: string, applicants: Applicant[]): void => {
+	logger.info('service applicant queue snapshot', {
+		serviceId,
+		applicants: applicants.map((applicant) => ({
+			id: applicant.id,
+			time: applicant.time,
+			distance: applicant.distance,
+			connection: applicant.connection ?? null,
+		})),
+	})
+}
+
+const getDriverPointerSnapshot = async (driverId: string): Promise<{
+	currentServiceId: string|null
+	connectionServiceId: string|null
+}> => {
+	const [currentSnapshot, connectionSnapshot] = await Promise.all([
+		FBDatabase.dbDriversAssigned().child(driverId).get(),
+		FBDatabase.dbDriversServiceConnections().child(driverId).get(),
+	])
+
+	return {
+		currentServiceId: currentSnapshot.exists() ? currentSnapshot.val() as string : null,
+		connectionServiceId: connectionSnapshot.exists() ? connectionSnapshot.val() as string : null,
+	}
+}
+
+const finalizeDriverPointersForService = async (
+	driverId: string,
+	serviceId: string
+): Promise<void> => {
+	let pointerSnapshot = await getDriverPointerSnapshot(driverId)
+
+	if (pointerSnapshot.connectionServiceId === serviceId) {
+		await DriverRepository.removeIndexConnectionIfMatches(driverId, serviceId).catch((e) => {
+			logger.error('Error removing matching driver connection pointer', e)
+		})
+		pointerSnapshot = {
+			...pointerSnapshot,
+			connectionServiceId: null,
+		}
+	}
+
+	if (pointerSnapshot.currentServiceId !== serviceId) {
+		return
+	}
+
+	const nextConnectionServiceId = pointerSnapshot.connectionServiceId
+	if (nextConnectionServiceId && nextConnectionServiceId !== serviceId) {
+		const clearedConnection = await DriverRepository
+			.removeIndexConnectionIfMatches(driverId, nextConnectionServiceId)
+			.catch((e) => {
+				logger.error('Error removing queued connection pointer for promotion', e)
+				return false
+			})
+
+		if (clearedConnection) {
+			await DriverRepository
+				.replaceIndexCurrentIfMatches(driverId, serviceId, nextConnectionServiceId)
+				.catch((e) => {
+					logger.error('Error promoting queued connection to current pointer', e)
+				})
+			return
+		}
+	}
+
+	await DriverRepository.removeIndexCurrentIfMatches(driverId, serviceId).catch((e) => {
+		logger.error('Error removing matching current driver pointer', e)
+	})
+}
+
+const rejectApplicant = async (
+	serviceId: string,
+	refApplicants: ReturnType<typeof FBDatabase.dbServices>,
+	applicant: Applicant,
+	reason: string,
+	availability?: DriverAvailabilityType,
+	driverIndexCurrent?: boolean,
+	driverIndexConnection?: string|false
+): Promise<void> => {
+	logger.warn('service applicant rejected', {
+		serviceId,
+		driverId: applicant.id,
+		reason,
+		paymentMode: availability?.paymentMode,
+		balance: availability?.balance,
+		enabledAt: availability?.enabledAt,
+		hasCurrentIndex: driverIndexCurrent,
+		hasConnectionIndex: Boolean(driverIndexConnection),
+		connectionServiceId: driverIndexConnection || null,
+		applicantConnection: applicant.connection ?? null,
+	})
+	await refApplicants.child(applicant.id).remove().catch((e) => {
+		logger.error('error removing rejected applicant', {
+			serviceId,
+			driverId: applicant.id,
+			reason,
+			error: e instanceof Error ? e.message : String(e),
+		})
+	})
+}
+
+const getApplicantAvailability = async (
+	serviceId: string,
+	applicant: Applicant
+): Promise<DriverAvailabilityType|null> => {
+	try {
+		const driver = await DriverRepository.getDriver(applicant.id)
+		return driver.availability ?? null
+	} catch (e) {
+		logger.error('error loading applicant availability', {
+			serviceId,
+			driverId: applicant.id,
+			error: e instanceof Error ? e.message : String(e),
+		})
+		return null
+	}
+}
+
+const selectEligibleApplicant = async (
+	serviceId: string,
+	applicants: Applicant[],
+	refApplicants: ReturnType<typeof FBDatabase.dbServices>
+): Promise<Applicant|undefined> => {
+	while (applicants.length > 0) {
+		const applicant = applicants.shift()
+		if (!applicant) {
+			return undefined
+		}
+
+		const availability = await getApplicantAvailability(serviceId, applicant)
+		logger.info('service selected applicant revalidation', {
+			serviceId,
+			driverId: applicant.id,
+			reason: availability?.reason ?? 'availability_unavailable',
+			canApply: availability?.canApply ?? false,
+			paymentMode: availability?.paymentMode,
+			balance: availability?.balance,
+			enabledAt: availability?.enabledAt,
+		})
+		if (!availability || !availability.canApply) {
+			await rejectApplicant(
+				serviceId,
+				refApplicants,
+				applicant,
+				availability?.reason ?? 'availability_unavailable',
+				availability ?? undefined
+			)
+			continue
+		}
+
+		return applicant
+	}
+
+	return undefined
+}
 
 export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreate(async (snapshot, context) => {
 	let canceled = false
@@ -24,21 +230,44 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 		refApplicants.on('child_added', async (dataSnapshot) => {
 			const applicant = dataSnapshot.val() as Applicant
 			applicant.id = dataSnapshot.key ?? ''
+			logger.info('service applicant received', {
+				serviceId,
+				driverId: applicant.id,
+				time: applicant.time,
+				distance: applicant.distance,
+				connection: applicant.connection ?? null,
+			})
 			const driverIndexCurrent = await DriverRepository.indexCurrentExists(applicant.id)
 			const driverIndexConnection = await DriverRepository.getIndexConnectionIfExists(applicant.id)
+			const availability = await getApplicantAvailability(serviceId, applicant)
+
+			if (!availability || !availability.canApply) {
+				await rejectApplicant(
+					serviceId,
+					refApplicants,
+					applicant,
+					availability?.reason ?? 'availability_unavailable',
+					availability ?? undefined,
+					driverIndexCurrent,
+					driverIndexConnection
+				)
+				return
+			}
+
 			if (!driverIndexCurrent || !driverIndexConnection) {
 				applicants.push(applicant)
-				applicants.sort((a, b) => {
-					if ((a.connection && b.connection) || (!a.connection && !b.connection)) {
-						return a.time - b.time
-					} else if (a.connection) {
-						return 1
-					} else {
-						return -1
-					}
-				})
+				sortApplicants(applicants)
+				logApplicantsSnapshot(serviceId, applicants)
 			} else {
-				logger.warn(`service ${serviceId} denied applicant ${applicant.id}, already has a service assigned`)
+				await rejectApplicant(
+					serviceId,
+					refApplicants,
+					applicant,
+					'already_has_service_assigned',
+					availability,
+					driverIndexCurrent,
+					driverIndexConnection
+				)
 			}
 		})
 
@@ -58,7 +287,10 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 		refApplicants.on('child_removed', (dataSnapshot) => {
 			const applicant = dataSnapshot.val() as Applicant
 			applicant.id = dataSnapshot.key ?? ''
-			logger.info(`service ${serviceId} removing applicant ${applicant.id}`)
+			logger.info('service applicant removed from queue', {
+				serviceId,
+				driverId: applicant.id,
+			})
 			const index = applicants.findIndex((a) => a.id === applicant.id)
 			if (index >= 0) applicants.splice(index, 1)
 		})
@@ -68,15 +300,36 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 			refService.off()
 			refStatus.off()
 			if (!canceled && applicants.length > 0) {
-				const applicant = applicants.shift()
+				logApplicantsSnapshot(serviceId, applicants)
+				const applicant = await selectEligibleApplicant(serviceId, applicants, refApplicants)
 				const driver = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
+				if (!applicant) {
+					logger.warn('service assignment timeout ended without eligible applicants', {
+						serviceId,
+					})
+					resolve(false)
+					return
+				}
 				if (!driver.exists()) {
 					refService.update({
 						status: 'in_progress',
 						driver_id: applicant?.id,
 					}).then(async () => {
 						refService.off()
-						logger.info(`service ${serviceId} assigned to ${applicant?.id}`)
+						logger.info('service assigned successfully', {
+							serviceId,
+							driverId: applicant?.id,
+							connection: applicant?.connection ?? null,
+						})
+						if (applicant && applicant.id) {
+							await writeVehicleSnapshot(serviceId, applicant.id).catch((e) => {
+								logger.error('Error writing vehicle snapshot to RTDB', {
+									serviceId,
+									driverId: applicant.id,
+									error: e instanceof Error ? e.message : String(e),
+								})
+							})
+						}
 						if (applicant && applicant.connection && applicant.id) {
 							await DriverRepository.addIndexConnection(applicant.id, applicant.connection)
 						} else if (applicant && applicant.id) {
@@ -85,18 +338,30 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 						resolve(true)
 					}).catch((e) => {
 						refService.off()
-						logger.error(`error applying service ${serviceId} to driver ${applicant?.id}`, e.message)
-						console.table(applicants)
+						logger.error('error applying service to driver', {
+							serviceId,
+							driverId: applicant?.id,
+							error: e instanceof Error ? e.message : String(e),
+						})
+						logApplicantsSnapshot(serviceId, applicants)
 						refService.child('applicants').remove()
 						resolve(false)
 					})
 				} else {
 					refService.off()
-					logger.warn(`service ${serviceId} already assigned to ${driver.val()}`)
+					logger.warn('service already assigned before timeout resolution', {
+						serviceId,
+						driverId: driver.val(),
+						selectedApplicantId: applicant.id,
+					})
 					resolve(false)
 				}
 			} else {
-				logger.info(`service ${serviceId} timeout without applicants or canceled`, applicants, canceled)
+				logger.info('service timeout without applicants or canceled', {
+					serviceId,
+					applicants,
+					canceled,
+				})
 				resolve(false)
 			}
 		}, 15000)
@@ -171,27 +436,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 		case STATUS_CANCELED:
 		case STATUS_COMPLETED: {
 			if (driverId.exists()) {
-				const connection = await DriverRepository.getIndexConnectionIfExists(driverId.val())
-				if (connection) {
-					await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
-						logger.error('Error while remove driver index connection', e)
-					})
-					if (connection != serviceId) {
-						await DriverRepository.removeIndexConnection(driverId.val()).catch((e) => {
-							logger.error('Error while remove driver index connection', e)
-						})
-						await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
-							logger.error('Error while adding driver index current', e)
-						})
-						await DriverRepository.addIndexCurrent(driverId.val(), connection).catch((e) => {
-							logger.error('Error while adding driver index current', e)
-						})
-					}
-				} else {
-					await DriverRepository.removeIndexCurrent(driverId.val()).catch((e) => {
-						logger.error('Error while remove driver index', e)
-					})
-				}
+				await finalizeDriverPointersForService(driverId.val(), serviceId)
 			}
 			if (wpNotificationsEnabled) {
 				key = dataSnapshot.after.val() === STATUS_CANCELED ? STATUS_CANCELED : STATUS_COMPLETED
@@ -212,16 +457,13 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					.catch((e) => logger.error(e))
 			}
 
-			await ServiceRepository.getServiceDB(serviceId)
-				.then(async (service) => {
-					await ServiceRepository.saveServiceFS(service).catch((e) => logger.error(e))
-				})
-				.catch((e) => logger.error(e))
 			if (dataSnapshot.after.val() === STATUS_COMPLETED) {
 				logger.info('process balance')
 				const action = new ProcessBalanceAction(serviceId)
 				await action.execute().catch((e) => logger.error(e))
 			}
+			await internalApiPost('/internal/service-history/finalize', {serviceId})
+				.catch((e) => logger.error('Error finalizing SQL service history', e))
 			break
 		}
 		default:
@@ -279,16 +521,4 @@ export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 		}
 		await FBDatabase.dbWpNotifications().child('new').child(serviceId).set(notification)
 			.catch((e) => logger.error(e))
-	})
-
-export const listenDriverBalance = databaseRef.ref('drivers/{driverID}/balance')
-	.onUpdate(async (dataSnapshot, context) => {
-		const driverId = context.params.driverID
-		const balance = dataSnapshot.after.val()
-		if (balance <= 0) {
-			logger.warn(`Driver ${driverId} has negative balance: ${balance}`)
-			await DriverRepository.disableDriver(driverId).catch((e) => logger.error(e))
-		} else {
-			logger.info(`Driver ${driverId} has balance: ${balance}`)
-		}
 	})
