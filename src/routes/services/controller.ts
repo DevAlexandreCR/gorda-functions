@@ -457,13 +457,13 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 					.catch((e) => logger.error(e))
 			}
 
-			await internalApiPost('/internal/service-history/finalize', {serviceId})
-				.catch((e) => logger.error('Error finalizing SQL service history', e))
 			if (dataSnapshot.after.val() === STATUS_COMPLETED) {
 				logger.info('process balance')
 				const action = new ProcessBalanceAction(serviceId)
 				await action.execute().catch((e) => logger.error(e))
 			}
+			await internalApiPost('/internal/service-history/finalize', {serviceId})
+				.catch((e) => logger.error('Error finalizing SQL service history', e))
 			break
 		}
 		default:

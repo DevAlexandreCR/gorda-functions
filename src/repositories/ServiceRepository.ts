@@ -8,6 +8,10 @@ class ServiceRepository {
 		const service: ServiceType = snapshot.val()
 		return Promise.resolve(service)
 	}
+
+	async saveTripFee(serviceId: string, fee: number): Promise<void> {
+		await FBDatabase.dbServices().child(serviceId).child('metadata').child('trip_fee').set(fee)
+	}
 }
 
 export default new ServiceRepository()

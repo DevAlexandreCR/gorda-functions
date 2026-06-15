@@ -1,6 +1,7 @@
 import {logger} from 'firebase-functions'
 import {WpClient} from '../types/WpClient'
 import {City} from '../types/City'
+import {RideFeesSnapshot} from '../types/RideFeesSnapshot'
 import {masterDataGet} from '../services/masterDataApi'
 
 class SettingsRepository {
@@ -33,6 +34,11 @@ class SettingsRepository {
 			`/public/master-data/branches/${branchID}/cities/${cityID}`
 		)
 		return response.data.city
+	}
+
+	async getRideFeesSnapshot(): Promise<RideFeesSnapshot> {
+		const response = await masterDataGet<{ rideFees: RideFeesSnapshot }>('/public/master-data/ride-fees/snapshot')
+		return response.data.rideFees
 	}
 }
 

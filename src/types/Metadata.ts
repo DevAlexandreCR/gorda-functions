@@ -3,7 +3,7 @@ export type Metadata = {
     start_trip_at: number
     end_trip_at: number
     route: string
-    trip_fee: number
+    trip_fee: number | undefined
     trip_distance: number
-    trip_multiplier: number
+    trip_multiplier: number | undefined
 }
