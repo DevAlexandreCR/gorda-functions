@@ -12,6 +12,10 @@ class ServiceRepository {
 	async saveTripFee(serviceId: string, fee: number): Promise<void> {
 		await FBDatabase.dbServices().child(serviceId).child('metadata').child('trip_fee').set(fee)
 	}
+
+	async saveDiscount(serviceId: string, value: number): Promise<void> {
+		await FBDatabase.dbServices().child(serviceId).child('metadata').child('discount').set(value)
+	}
 }
 
 export default new ServiceRepository()

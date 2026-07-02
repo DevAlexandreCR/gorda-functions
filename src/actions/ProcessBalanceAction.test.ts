@@ -290,6 +290,7 @@ describe('Write-back targeting assertion', () => {
 		mockSettingsRepository.getCitySettings.mockResolvedValue(makeCity(10))
 		mockDriverRepository.getDriver.mockResolvedValue(driver)
 		mockServiceRepository.saveTripFee.mockResolvedValue(undefined)
+		mockServiceRepository.saveDiscount.mockResolvedValue(undefined)
 		mockDriverRepository.saveBalance.mockResolvedValue(savedDriver)
 
 		await new ProcessBalanceAction(SERVICE_ID).execute()
@@ -298,13 +299,117 @@ describe('Write-back targeting assertion', () => {
 		expect(mockServiceRepository.saveTripFee).toHaveBeenCalledTimes(1)
 		expect(mockServiceRepository.saveTripFee).toHaveBeenCalledWith(SERVICE_ID, 6000)
 
-		// ServiceRepository has no status-writing method invoked — saveTripFee is the only call
+		// saveDiscount is the per-service audit write (writes metadata/discount in Firebase)
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledTimes(1)
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 600)
+
+		// ServiceRepository has no status-writing method invoked — only the two writes above
 		// Confirming there are no other ServiceRepository method calls
 		const allServiceRepoCalls = Object.keys(mockServiceRepository).filter(
 			(key) => jest.isMockFunction((mockServiceRepository as any)[key]) &&
                 (mockServiceRepository as any)[key].mock.calls.length > 0
 		)
-		// Only getServiceDB and saveTripFee should be called — no status mutation
-		expect(allServiceRepoCalls.sort()).toEqual(['getServiceDB', 'saveTripFee'].sort())
+		// Only getServiceDB, saveTripFee and saveDiscount should be called — no status mutation
+		expect(allServiceRepoCalls.sort()).toEqual(['getServiceDB', 'saveDiscount', 'saveTripFee'].sort())
+	})
+})
+
+// Task 4.1 — saveDiscount persistence and ordering
+
+describe('saveDiscount persistence and ordering', () => {
+	test('percentage driver, positive discount: saveDiscount computed and balance decremented', async () => {
+		const driver = makeDriver({balance: 40000, paymentMode: DriverPaymentMode.PERCENTAGE})
+		const savedDriver = makeDriver({balance: 38150, paymentMode: DriverPaymentMode.PERCENTAGE})
+
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(18500, 1))
+		mockSettingsRepository.getRideFeesSnapshot.mockResolvedValue({fees_minimum: 6000})
+		mockSettingsRepository.getCitySettings.mockResolvedValue(makeCity(10))
+		mockDriverRepository.getDriver.mockResolvedValue(driver)
+		mockServiceRepository.saveDiscount.mockResolvedValue(undefined)
+		mockDriverRepository.saveBalance.mockResolvedValue(savedDriver)
+
+		await new ProcessBalanceAction(SERVICE_ID).execute()
+
+		// discount = 18500 * 10 / 100 = 1850
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 1850)
+		expect(mockDriverRepository.saveBalance).toHaveBeenCalledWith('driver-001', 38150)
+	})
+
+	test('monthly driver: saveDiscount called with 0 and balance untouched', async () => {
+		const driver = makeDriver({balance: 40000, paymentMode: DriverPaymentMode.MONTHLY})
+
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(18500, 1))
+		mockSettingsRepository.getRideFeesSnapshot.mockResolvedValue({fees_minimum: 6000})
+		mockDriverRepository.getDriver.mockResolvedValue(driver)
+		mockServiceRepository.saveDiscount.mockResolvedValue(undefined)
+
+		await new ProcessBalanceAction(SERVICE_ID).execute()
+
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 0)
+		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
+	})
+
+	test('percentage driver with zero discount: saveDiscount(0) and no balance change', async () => {
+		const driver = makeDriver({balance: 40000, paymentMode: DriverPaymentMode.PERCENTAGE})
+
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(18500, 1))
+		mockSettingsRepository.getRideFeesSnapshot.mockResolvedValue({fees_minimum: 6000})
+		mockSettingsRepository.getCitySettings.mockResolvedValue(makeCity(0))
+		mockDriverRepository.getDriver.mockResolvedValue(driver)
+		mockServiceRepository.saveDiscount.mockResolvedValue(undefined)
+
+		await new ProcessBalanceAction(SERVICE_ID).execute()
+
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 0)
+		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
+	})
+
+	test('no driver_id: nothing written', async () => {
+		const service = makeService(18500, 1)
+		mockServiceRepository.getServiceDB.mockResolvedValue({...service, driver_id: null})
+
+		await new ProcessBalanceAction(SERVICE_ID).execute()
+
+		expect(mockServiceRepository.saveDiscount).not.toHaveBeenCalled()
+		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
+	})
+
+	test('saveDiscount is invoked before saveBalance; audit value persists even when saveBalance rejects', async () => {
+		const driver = makeDriver({balance: 40000, paymentMode: DriverPaymentMode.PERCENTAGE})
+		const callOrder: string[] = []
+
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(18500, 1))
+		mockSettingsRepository.getRideFeesSnapshot.mockResolvedValue({fees_minimum: 6000})
+		mockSettingsRepository.getCitySettings.mockResolvedValue(makeCity(10))
+		mockDriverRepository.getDriver.mockResolvedValue(driver)
+		mockServiceRepository.saveDiscount.mockImplementation(async () => {
+			callOrder.push('saveDiscount')
+		})
+		mockDriverRepository.saveBalance.mockImplementation(async () => {
+			callOrder.push('saveBalance')
+			throw new Error('balance save rejected')
+		})
+
+		await expect(new ProcessBalanceAction(SERVICE_ID).execute()).rejects.toThrow('balance save rejected')
+
+		// discount = 18500 * 10 / 100 = 1850 — persisted despite the later rejection
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 1850)
+		expect(callOrder).toEqual(['saveDiscount', 'saveBalance'])
+	})
+
+	// Task 4.5 — Pins the accepted gap documented in the spec: "Failure before the discount is
+	// computed leaves the default (accepted gap)". If getDriver rejects before payment mode/discount
+	// is known, saveDiscount must never run and execute() must reject (the caller's
+	// `.catch(logger.error)` swallows this, and /finalize still proceeds with deducted_value
+	// defaulting to 0 via api's column default). This test exists so a future refactor can't
+	// silently change this behavior — e.g. by moving saveDiscount earlier or absorbing the error.
+	test('getDriver rejects before discount is computed: saveDiscount never called and execute() rejects', async () => {
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(18500, 1))
+		mockDriverRepository.getDriver.mockRejectedValue(new Error('driver fetch failed'))
+
+		await expect(new ProcessBalanceAction(SERVICE_ID).execute()).rejects.toThrow('driver fetch failed')
+
+		expect(mockServiceRepository.saveDiscount).not.toHaveBeenCalled()
+		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
 	})
 })

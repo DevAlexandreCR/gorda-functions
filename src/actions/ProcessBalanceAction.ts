@@ -47,11 +47,11 @@ export class ProcessBalanceAction {
 			await ServiceRepository.saveTripFee(this.serviceID, effectiveFee)
 		}
 
-		// Deduct for percentage drivers only
+		// Compute the deduction for percentage drivers only; monthly drivers stay at 0
+		let discount = 0
 		if (driver.paymentMode === DriverPaymentMode.PERCENTAGE) {
 			const city = await this.getCity(service.start_loc.country, service.start_loc.city)
-			const discount = (effectiveFee * city.percentage) / 100
-			if (discount === 0) return
+			discount = (effectiveFee * city.percentage) / 100
 
 			logger.info('driver balance discount calculated', {
 				serviceId: this.serviceID,
@@ -62,6 +62,12 @@ export class ProcessBalanceAction {
 				effectiveFee,
 				discount,
 			})
+		}
+
+		// Persist the audit value before mutating the balance, so it survives a failed saveBalance call
+		await ServiceRepository.saveDiscount(this.serviceID, discount)
+
+		if (discount > 0) {
 			driver.balance -= discount
 			const updatedDriver = await DriverRepository.saveBalance(driver.id, driver.balance)
 			if (updatedDriver.balance <= 0) {
