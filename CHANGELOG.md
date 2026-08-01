@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.5(2026-08-01)](https://github.com/DevAlexandreCR/gorda-functions/compare/2.0.5...2.0.4)
+
 ### Added
 
 - Skip any auction applicant whose id differs from the service's `directed_to`, so a directed test service can only ever be assigned to its target driver, regardless of the driver's app version.
