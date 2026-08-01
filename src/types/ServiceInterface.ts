@@ -14,4 +14,6 @@ export type ServiceType = {
   driver_id: string | null
   client_id: string | null
   created_at: number
+  directed_to?: string | null
+  origin?: string | null
 }

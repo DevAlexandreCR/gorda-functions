@@ -15,6 +15,12 @@ export class ProcessBalanceAction {
 
 	async execute(): Promise<void> {
 		const service = await ServiceRepository.getServiceDB(this.serviceID)
+
+		if (service.origin === 'test') {
+			await ServiceRepository.saveDiscount(this.serviceID, 0)
+			return
+		}
+
 		if (!service.driver_id) return
 
 		const driver = await DriverRepository.getDriver(service.driver_id)

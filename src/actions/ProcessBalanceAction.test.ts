@@ -51,7 +51,11 @@ function makeDriver(overrides: Partial<DriverType> = {}): DriverType {
 }
 
 /** Creates a test ServiceType with the given trip_fee and optional trip_multiplier */
-function makeService(tripFee: number | undefined, tripMultiplier?: number | undefined): ServiceType {
+function makeService(
+	tripFee: number | undefined,
+	tripMultiplier?: number | undefined,
+	origin?: string | null
+): ServiceType {
 	return {
 		id: SERVICE_ID,
 		status: 'completed',
@@ -73,6 +77,7 @@ function makeService(tripFee: number | undefined, tripMultiplier?: number | unde
 		driver_id: 'driver-001',
 		client_id: null,
 		created_at: 1000000,
+		origin,
 	}
 }
 
@@ -411,5 +416,23 @@ describe('saveDiscount persistence and ordering', () => {
 
 		expect(mockServiceRepository.saveDiscount).not.toHaveBeenCalled()
 		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
+	})
+})
+
+// Task 2.2 — Test service short-circuit (origin = 'test')
+
+describe('Test service short-circuit', () => {
+	test('percentage driver, origin=test: balance untouched, saveDiscount(0), trip_fee not floored', async () => {
+		mockServiceRepository.getServiceDB.mockResolvedValue(makeService(12000, 1, 'test'))
+		mockServiceRepository.saveDiscount.mockResolvedValue(undefined)
+
+		await new ProcessBalanceAction(SERVICE_ID).execute()
+
+		expect(mockSettingsRepository.getRideFeesSnapshot).not.toHaveBeenCalled()
+		expect(mockDriverRepository.getDriver).not.toHaveBeenCalled()
+		expect(mockServiceRepository.saveTripFee).not.toHaveBeenCalled()
+		expect(mockServiceRepository.saveDiscount).toHaveBeenCalledWith(SERVICE_ID, 0)
+		expect(mockDriverRepository.saveBalance).not.toHaveBeenCalled()
+		expect(mockDriverRepository.removeOnlinePresence).not.toHaveBeenCalled()
 	})
 })

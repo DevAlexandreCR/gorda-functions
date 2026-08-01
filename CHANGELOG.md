@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Skip any auction applicant whose id differs from the service's `directed_to`, so a directed test service can only ever be assigned to its target driver, regardless of the driver's app version.
+- Short-circuit `ProcessBalanceAction` for `origin: 'test'` services: no min-fee floor, no `trip_fee` write-back, and no balance deduction for any payment mode; `metadata.discount` is persisted as `0`.
+
 ## [2.0.4(2026-07-01)](https://github.com/DevAlexandreCR/gorda-functions/compare/2.0.4...2.0.3)
 
 ### Added

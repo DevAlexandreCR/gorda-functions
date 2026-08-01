@@ -180,15 +180,26 @@ const getApplicantAvailability = async (
 	}
 }
 
-const selectEligibleApplicant = async (
+export const selectEligibleApplicant = async (
 	serviceId: string,
 	applicants: Applicant[],
-	refApplicants: ReturnType<typeof FBDatabase.dbServices>
+	refApplicants: ReturnType<typeof FBDatabase.dbServices>,
+	directedTo: string | null = null
 ): Promise<Applicant|undefined> => {
 	while (applicants.length > 0) {
 		const applicant = applicants.shift()
 		if (!applicant) {
 			return undefined
+		}
+
+		if (directedTo && applicant.id !== directedTo) {
+			await rejectApplicant(
+				serviceId,
+				refApplicants,
+				applicant,
+				'not_directed_target'
+			)
+			continue
 		}
 
 		const availability = await getApplicantAvailability(serviceId, applicant)
@@ -301,7 +312,10 @@ export const assign = databaseRef.ref('services/{serviceID}/applicants').onCreat
 			refStatus.off()
 			if (!canceled && applicants.length > 0) {
 				logApplicantsSnapshot(serviceId, applicants)
-				const applicant = await selectEligibleApplicant(serviceId, applicants, refApplicants)
+				const directedToSnapshot = await FBDatabase.dbServices().child(serviceId).child('directed_to').get()
+				const rawDirectedTo = directedToSnapshot.exists() ? directedToSnapshot.val() as string : null
+				const directedTo = rawDirectedTo && rawDirectedTo.length > 0 ? rawDirectedTo : null
+				const applicant = await selectEligibleApplicant(serviceId, applicants, refApplicants, directedTo)
 				const driver = await FBDatabase.dbServices().child(serviceId).child('driver_id').get()
 				if (!applicant) {
 					logger.warn('service assignment timeout ended without eligible applicants', {
