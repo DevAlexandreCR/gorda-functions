@@ -3,7 +3,13 @@ import FBDatabase from '../../services/firebase/FBDatabase'
 import {DataSnapshot} from 'firebase-admin/database'
 import {Applicant} from './Applicant'
 import {WpNotificationType} from '../../types/WpNotificationType'
-import {STATUS_CANCELED, STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_PENDING} from '../../services/constants/Constants'
+import {
+	ORIGIN_DRIVER,
+	STATUS_CANCELED,
+	STATUS_COMPLETED,
+	STATUS_IN_PROGRESS,
+	STATUS_PENDING,
+} from '../../services/constants/Constants'
 import SettingsRepository from '../../repositories/SettingsRepository'
 import DriverRepository from '../../repositories/DriverRepository'
 import {ProcessBalanceAction} from '../../actions/ProcessBalanceAction'
@@ -416,8 +422,16 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 	.onUpdate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
+		const origin: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('origin').get()
+		const isDriverOrigin = origin.val() === ORIGIN_DRIVER
 
-		const wpNotificationsEnabled = await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
+		// Driver-origin services carry the wp_client_id='driver-app' placeholder, which is never a
+		// registered WpClient in master data — looking it up 404s and would otherwise crash this
+		// entire handler (settlement + history finalize included). No notification is ever sent for
+		// these services regardless, so skip the lookup entirely (design.md D7).
+		const wpNotificationsEnabled = isDriverOrigin ?
+			false :
+			await SettingsRepository.isWpNotificationsEnabled(wpClientId.val())
 		const clientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('client_id').get()
 		let notification: WpNotificationType
 		let key: string
@@ -425,7 +439,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 
 		switch (dataSnapshot.after.val()) {
 		case STATUS_IN_PROGRESS: {
-			if (!wpNotificationsEnabled) return
+			if (!wpNotificationsEnabled || isDriverOrigin) return
 			notification = {
 				client_id: clientId.val(),
 				wp_client_id: wpClientId.val(),
@@ -452,7 +466,7 @@ export const notificationStatusChanged = databaseRef.ref('services/{serviceID}/s
 			if (driverId.exists()) {
 				await finalizeDriverPointersForService(driverId.val(), serviceId)
 			}
-			if (wpNotificationsEnabled) {
+			if (wpNotificationsEnabled && !isDriverOrigin) {
 				key = dataSnapshot.after.val() === STATUS_CANCELED ? STATUS_CANCELED : STATUS_COMPLETED
 				notification = {
 					client_id: clientId.val(),
@@ -514,6 +528,9 @@ export const notificationArrived = databaseRef.ref('services/{serviceID}/metadat
 export const notificationNew = databaseRef.ref('services/{serviceID}/client_id')
 	.onCreate(async (dataSnapshot, context) => {
 		const serviceId = context.params.serviceID
+		const origin: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('origin').get()
+		if (origin.val() === ORIGIN_DRIVER) return
+
 		const wpClientId: DataSnapshot = await FBDatabase.dbServices().child(serviceId).child('wp_client_id').get()
 		const wpNotificationsEnabled = await SettingsRepository.mustAddNew(wpClientId.val())
 		if (!wpNotificationsEnabled) return
